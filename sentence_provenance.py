@@ -18,7 +18,9 @@ def split_into_sentences(text: str) -> list:
         if '|' in s:
             continue
         out.append(s)
-    return out
+    # Filter out numbered list artifacts like "1.", "2.", "3."
+    sentences = [s for s in out if len(s.strip()) > 10]
+    return sentences
 
 
 def _safe_parse_json(text: str):
@@ -166,7 +168,10 @@ def get_provenance_summary(provenance_map: list) -> dict:
     avg_comb = sum(p.get('combined_score', 0) for p in provenance_map) / total
     high = sum(1 for p in provenance_map if p.get('confidence', 0) > 0.7)
     inferred = sum(1 for p in provenance_map if p.get('matched_source') in ('INFERRED', 'UNKNOWN'))
-    sources = list({p.get('matched_source') for p in provenance_map if p.get('matched_source') not in ('INFERRED', 'UNKNOWN')})
+    sources = list(set([
+        p["matched_source"] for p in provenance_map 
+        if p["matched_source"] and p["matched_source"] != "None" and p["matched_source"] != "UNKNOWN" and p["matched_source"] != "INFERRED"
+    ]))
 
     return {
         'total_sentences': total,
