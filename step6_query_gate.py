@@ -38,6 +38,13 @@ from config import (
     GRAPH_DIR,
 )
 
+# Adaptive entropy
+try:
+    from adaptive_entropy import get_current_threshold, record_feedback
+    ADAPTIVE_ENTROPY_AVAILABLE = True
+except Exception:
+    ADAPTIVE_ENTROPY_AVAILABLE = False
+
 # Weather enrichment for recommendations
 try:
     from step8_weather_rag import enrich_with_weather, is_weather_query
@@ -48,6 +55,7 @@ except Exception as e:
 
 # ── Single Groq client (used for both models) ──
 client = Groq(api_key=GROQ_API_KEY)
+groq_client = client
 
 
 # ─────────────────────────────────────────────
@@ -240,7 +248,7 @@ complexity must be "simple" or "complex"."""
 # Combines entropy + classification
 # ─────────────────────────────────────────────
 
-def make_routing_decision(entropy, classification):
+def make_routing_decision(entropy, classification, threshold=None):
     """
     Combine entropy + classification to decide path.
 
@@ -259,8 +267,11 @@ def make_routing_decision(entropy, classification):
     # Fast path query types
     fast_types = {"FACTUAL", "STATISTICAL"}
 
+    # Determine which threshold to use
+    threshold_used = threshold if threshold is not None else QT_ENTROPY_THRESHOLD
+
     # All conditions for fast path
-    entropy_ok    = entropy < QT_ENTROPY_THRESHOLD
+    entropy_ok    = entropy < threshold_used
     type_ok       = q_type in fast_types
     complexity_ok = complexity == "simple"
     confidence_ok = confidence >= QT_MIN_CONFIDENCE
@@ -278,7 +289,7 @@ def make_routing_decision(entropy, classification):
         if not entropy_ok:
             reasons.append(
                 f"high entropy ({entropy} >= "
-                f"{QT_ENTROPY_THRESHOLD})"
+                f"{threshold_used})"
             )
         if not type_ok:
             reasons.append(f"complex type: {q_type}")
@@ -649,8 +660,16 @@ def query_gate(query, embedder, collection,
     entropy      = entropy_data["entropy"]
     token_logprobs = entropy_data["token_logprobs"]
 
+    # Keep a named copy for feedback recording
+    entropy_score = entropy
+
     print(f"   Entropy   : {entropy}")
-    print(f"   Threshold : {QT_ENTROPY_THRESHOLD}")
+    # Use adaptive threshold when available
+    if ADAPTIVE_ENTROPY_AVAILABLE:
+        THRESHOLD = get_current_threshold()
+    else:
+        THRESHOLD = QT_ENTROPY_THRESHOLD
+    print(f"   Threshold : {THRESHOLD}  ← adaptive")
     print(f"   Tokens    : {entropy_data['first_tokens']}")
     
     # Debug check: detect if all logprobs are identical
@@ -663,7 +682,7 @@ def query_gate(query, embedder, collection,
 
     # ── Step 3: Routing decision ──
     print(f"\n🔀 Step 3: Routing decision...")
-    routing = make_routing_decision(entropy, classification)
+    routing = make_routing_decision(entropy, classification, threshold=THRESHOLD)
     path    = routing["path"]
 
     if path == "fast":
@@ -726,7 +745,7 @@ def query_gate(query, embedder, collection,
     weather_data = None
     weather_enrichment_applied = False
     
-    if WEATHER_ENRICHMENT_AVAILABLE and q_type == "RECOMMENDATION" and is_weather_query(query):
+    if WEATHER_ENRICHMENT_AVAILABLE and q_type in ["RECOMMENDATION", "DIAGNOSTIC"] and is_weather_query(query):
         print(f"   ✓ Weather-related {q_type} query detected")
         print(f"   Fetching live weather data...")
         
@@ -741,9 +760,32 @@ def query_gate(query, embedder, collection,
         )
         
         if weather_data:
-            # Create weather chunk to prepend
+            # Optionally build seasonal context for recommendations/diagnostics
+            seasonal_injected = False
+            combined_context = enriched_context
+            # Also run seasonal context when weather was fetched and the query_type is RECOMMENDATION or DIAGNOSTIC
+            if weather_data and q_type in ["RECOMMENDATION", "DIAGNOSTIC"]:
+                try:
+                    from seasonal_context import get_full_seasonal_context
+
+                    # Use lat/lon from weather_data if present, otherwise default to India centre
+                    lat = weather_data.get("lat", 20.5937) if isinstance(weather_data, dict) else 20.5937
+                    lon = weather_data.get("lon", 78.9629) if isinstance(weather_data, dict) else 78.9629
+
+                    seasonal_ctx = get_full_seasonal_context(
+                        query=query,
+                        lat=lat,
+                        lon=lon
+                    )
+                    combined_context = enriched_context + "\n\n" + seasonal_ctx["context_string"] + "\n\n" + base_context
+                    seasonal_injected = True
+                except Exception as e:
+                    print(f"   ⚠️  Seasonal context unavailable: {e}")
+                    combined_context = enriched_context + "\n\n" + base_context
+
+            # Create weather chunk to prepend (with seasonal context if available)
             weather_chunk = {
-                "text": enriched_context,
+                "text": combined_context,
                 "source_file": "REAL-TIME WEATHER DATA",
                 "final_score": 1.0,  # Highest priority
             }
@@ -751,13 +793,15 @@ def query_gate(query, embedder, collection,
             chunks.insert(0, weather_chunk)
             weather_enrichment_applied = True
             print(f"   ✓ Weather context injected")
+            if seasonal_injected:
+                print(f"   ✓ Seasonal context injected")
         else:
             print(f"   ⚠️  Weather data unavailable")
     else:
         if not WEATHER_ENRICHMENT_AVAILABLE:
             print(f"   ⚠️  Weather enrichment not available")
-        elif q_type != "RECOMMENDATION":
-            print(f"   ℹ️  Not a recommendation query ({q_type})")
+        elif q_type not in ["RECOMMENDATION", "DIAGNOSTIC"]:
+            print(f"   ℹ️  Not a recommendation/diagnostic query ({q_type})")
         elif not is_weather_query(query):
             print(f"   ℹ️  No weather keywords detected")
 
@@ -772,6 +816,68 @@ def query_gate(query, embedder, collection,
         answer_data = slow_path_answer(
             query, chunks, q_type
         )
+
+    # ── Step 5B: Sentence-level provenance mapping ──
+    try:
+        from sentence_provenance import build_provenance_map, print_provenance_report, get_provenance_summary
+        answer = answer_data.get('answer', '')
+        if answer and answer.strip() and "knowledge base doesn't have" not in answer:
+            print("\n🔬 Step 5B: Building Sentence-Level Provenance Map...")
+
+            # Prefer using scored_chunks from temporal step, else construct from available chunks
+            try:
+                provenance_chunks = scored_chunks
+            except NameError:
+                provenance_chunks = []
+                for c in chunks:
+                    provenance_chunks.append({
+                        'text': c.get('text'),
+                        'source_file': c.get('source_file') or c.get('source'),
+                        'temporal_score': c.get('temporal_score', c.get('final_score', 0)),
+                        'freshness_label': c.get('freshness_label', 'UNKNOWN')
+                    })
+
+            provenance_map = build_provenance_map(
+                answer_text=answer,
+                scored_chunks=provenance_chunks,
+                client=groq_client
+            )
+
+            print_provenance_report(provenance_map)
+
+            provenance_summary = get_provenance_summary(provenance_map)
+
+            print(f"\n🗺️  PROVENANCE : {provenance_summary['total_sentences']} sentences mapped")
+            print(f"   Avg Confidence  : {provenance_summary['avg_confidence']:.2f}")
+            print(f"   Avg Trust Score : {provenance_summary['avg_combined_score']:.4f}")
+            print(f"   Sources Traced  : {', '.join(provenance_summary['sources_used'])}")
+        else:
+            print("\n⏭️  Step 5B: Skipping provenance (no answer generated)")
+    except Exception as e:
+        print(f"   ⚠️  Provenance step failed: {e}")
+
+    # ── Step 6: Collect routing feedback (optional, interactive) ──
+    print("\n📝 Step 6: Recording routing feedback...")
+    try:
+        feedback = input("   Was this answer accurate? (y/n, press Enter to skip): ").strip().lower()
+        if feedback in ['y', 'n']:
+            was_accurate = feedback == 'y'
+            try:
+                if ADAPTIVE_ENTROPY_AVAILABLE:
+                    record_feedback(
+                        query=query,
+                        entropy=entropy_score,
+                        path_used=path,
+                        was_accurate=was_accurate
+                    )
+                else:
+                    print("   ℹ️  Adaptive entropy not available — feedback not recorded")
+            except Exception as e:
+                print(f"   ⚠️  Failed to record feedback: {e}")
+        else:
+            print("   ⏭️  Feedback skipped")
+    except Exception:
+        print("   ⏭️  Feedback skipped")
 
     # ── Final output ──
     print(f"\n{'─'*60}")

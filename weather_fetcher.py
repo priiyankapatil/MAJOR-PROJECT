@@ -234,6 +234,11 @@ def get_farm_weather(location_name):
     # Step 3: Process
     weather = process_weather(raw, location_name)
 
+    # Attach coordinates to weather result for downstream consumers
+    if weather is not None:
+        weather["lat"] = coords.get("lat")
+        weather["lon"] = coords.get("lon")
+
     # Display summary
     if weather:
         c = weather["current"]

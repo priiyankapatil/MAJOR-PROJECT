@@ -2,7 +2,8 @@
 # =============================================
 # Central configuration for your RAG project
 # =============================================
-
+from dotenv import load_dotenv
+load_dotenv()
 import os
 
 # Add this inside SOURCE_METADATA = { ... }
