@@ -53,6 +53,8 @@ except Exception as e:
     print(f"⚠️  Weather enrichment not available: {e}")
     WEATHER_ENRICHMENT_AVAILABLE = False
 
+from compliance_scanner import scan_answer_for_compliance, build_compliance_warning_box
+
 # ── Single Groq client (used for both models) ──
 client = Groq(api_key=GROQ_API_KEY)
 groq_client = client
@@ -870,10 +872,11 @@ def query_gate(query, embedder, collection,
             query, chunks, q_type
         )
 
+    answer = answer_data.get('answer', '')
+
     # ── Step 5B: Sentence-level provenance mapping ──
     try:
         from sentence_provenance import build_provenance_map, print_provenance_report, get_provenance_summary
-        answer = answer_data.get('answer', '')
         if answer and answer.strip() and "knowledge base doesn't have" not in answer:
             print("\n🔬 Step 5B: Building Sentence-Level Provenance Map...")
 
@@ -908,6 +911,29 @@ def query_gate(query, embedder, collection,
             print("\n⏭️  Step 5B: Skipping provenance (no answer generated)")
     except Exception as e:
         print(f"   ⚠️  Provenance step failed: {e}")
+
+    # ── Step 5C: Regulatory compliance scan ──
+    if answer and answer.strip() and "knowledge base doesn't have" not in answer:
+        print("\n⚖️  Step 5C: Running Regulatory Compliance Scan...")
+
+        compliance_result = scan_answer_for_compliance(answer)
+
+        if compliance_result["pesticides_found"]:
+            print(f"   Pesticides detected : {len(compliance_result['pesticides_found'])}")
+            print(f"   Overall compliance  : {compliance_result['overall_compliance']:.4f}")
+            print(f"   Warning needed      : {compliance_result['warning_needed']}")
+            print(f"   Any India banned    : {compliance_result['any_banned']}")
+            print(f"   Any EU banned       : {compliance_result['any_eu_banned']}")
+
+            warning_box = build_compliance_warning_box(compliance_result)
+            print(warning_box)
+
+            answer = answer + "\n\n" + warning_box
+            answer_data["answer"] = answer
+        else:
+            print("   ✅ No regulated pesticides detected in answer")
+    else:
+        print("\n⏭️  Step 5C: Compliance scan skipped (no answer)")
 
     # ── Step 6: Collect routing feedback (optional, interactive) ──
     print("\n📝 Step 6: Recording routing feedback...")
