@@ -248,7 +248,75 @@
       </section>
 
       <section class="card full">
-        <h2>2. Runtime Flow Diagram</h2>
+        <h2>2. Thesis-Ready Architecture</h2>
+        <p>
+          This is the clean layered version of the system that you can use in your thesis. It separates the project into components with one responsibility each.
+        </p>
+        <div class="mermaid">
+flowchart TB
+    subgraph L1[Layer 1: Data Acquisition & Preprocessing]
+        A1[Raw PDF Sources]
+        A2[step1_extract.py]
+        A3[step2_clean.py]
+        A4[step3_chunk.py]
+        A5[step4_store.py]
+        A1 --> A2 --> A3 --> A4 --> A5
+    end
+
+    subgraph L2[Layer 2: Retrieval & Indexing]
+        B1[ChromaDB Vector Store]
+        B2[BM25 Corpus]
+        B3[Hybrid Retrieval]
+        B1 --> B3
+        B2 --> B3
+    end
+
+    subgraph L3[Layer 3: Routing & Context Control]
+        C1[Semantic Bridge]
+        C2[Entropy Routing]
+        C3[Temporal Credibility]
+        C4[Phenology Gate]
+        C5[Weather Enrichment]
+    end
+
+    subgraph L4[Layer 4: Answer Generation]
+        D1[Fast Model Path]
+        D2[Slow Model Path]
+        D3[Groq Answer Generation]
+    end
+
+    subgraph L5[Layer 5: Explainability & Safety]
+        E1[Sentence Provenance]
+        E2[Compliance Scanner]
+        E3[Regulatory KB]
+        E4[Regulatory Updater]
+    end
+
+    subgraph L6[Layer 6: Evaluation Scaffold]
+        F1[Baseline Comparison]
+        F2[Metrics & Reports]
+    end
+
+    A5 --> B1
+    A5 --> B2
+    C1 --> C2 --> B3
+    B3 --> C3 --> C4 --> C5 --> D1 --> D3
+    C5 --> D2 --> D3
+    D3 --> E1 --> E2 --> E3 --> E4
+    E4 --> F1 --> F2
+        </div>
+        <div class="pill-row">
+          <span class="pill">Ingestion</span>
+          <span class="pill">Retrieval</span>
+          <span class="pill">Routing</span>
+          <span class="pill">Generation</span>
+          <span class="pill">Safety</span>
+          <span class="pill">Evaluation</span>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>3. Runtime Flow Diagram</h2>
         <div class="mermaid">
 flowchart TD
     A[Run step6_query_gate.py] --> B[Load .env]
@@ -300,7 +368,7 @@ flowchart TD
       </section>
 
       <section class="card half">
-        <h2>3. Startup: What Happens First</h2>
+        <h2>4. Startup: What Happens First</h2>
         <div class="timeline">
           <div class="step"><strong>Step A: Load environment</strong><br/>The script now loads <code>.env</code> before importing the regulatory updater, so API keys are available in-process.</div>
           <div class="step"><strong>Step B: Regulatory auto-update</strong><br/>The updater runs freshness checks, tries CIB&RC and EU scrapes, and can do online verification for borderline pesticides.</div>
@@ -309,7 +377,7 @@ flowchart TD
       </section>
 
       <section class="card half">
-        <h2>4. Query-Time Flow</h2>
+        <h2>5. Query-Time Flow</h2>
         <div class="timeline">
           <div class="step"><strong>Step 0: Semantic bridge</strong><br/>Maps folk/local terms to scientific crop terms using the bridge modules.</div>
           <div class="step"><strong>Step 1: Classification</strong><br/>Determines whether the query is factual, diagnostic, recommendation, etc.</div>
@@ -318,7 +386,7 @@ flowchart TD
       </section>
 
       <section class="card two-thirds">
-        <h2>5. Retrieval and Answering</h2>
+        <h2>6. Retrieval and Answering</h2>
         <p>
           Once the route is chosen, the system retrieves candidate chunks from the vector store and BM25 corpus. Those chunks then pass through
           temporal credibility filtering so old sources are reduced or removed. If the query is crop-related, the phenological gate checks whether the advice
@@ -333,7 +401,7 @@ flowchart TD
       </section>
 
       <section class="card third">
-        <h2>6. Answer Output</h2>
+        <h2>7. Answer Output</h2>
         <p>
           The final answer is produced by Groq. Fast path uses the gate model; slow path uses the stronger answer model. After generation,
           the answer goes through provenance and compliance checks before it is printed.
@@ -341,7 +409,7 @@ flowchart TD
       </section>
 
       <section class="card full">
-        <h2>7. Files and Their Roles</h2>
+        <h2>8. Files and Their Roles</h2>
         <div class="grid" style="margin-top: 10px;">
           <div class="card third">
             <h3>step6_query_gate.py</h3>
@@ -387,7 +455,7 @@ flowchart TD
       </section>
 
       <section class="card half">
-        <h2>8. Regulatory Compliance Layer</h2>
+        <h2>9. Regulatory Compliance Layer</h2>
         <p>
           This is the new Module 7/7B layer. It is designed to be conservative:
         </p>
@@ -404,7 +472,7 @@ flowchart TD
       </section>
 
       <section class="card half">
-        <h2>9. Why the Confidence Gate Exists</h2>
+        <h2>10. Why the Confidence Gate Exists</h2>
         <p>
           The online verifier is intentionally strict. If the search results do not explicitly show pesticide-specific regulatory evidence,
           the dynamic result is rejected and the static KB remains authoritative. That is why you sometimes see:</p>
@@ -417,7 +485,7 @@ Source URL : None</div>
       </section>
 
       <section class="card full">
-        <h2>10. Example Runtime Sequence</h2>
+        <h2>11. Example Runtime Sequence</h2>
         <ol>
           <li>User runs <strong>python step6_query_gate.py</strong>.</li>
           <li>The script loads <code>.env</code> and starts the regulatory updater.</li>
@@ -436,7 +504,7 @@ Source URL : None</div>
       </section>
 
       <section class="card full">
-        <h2>11. How to Check It in Terminal</h2>
+        <h2>12. How to Check It in Terminal</h2>
         <div class="codebox">$env:NO_INTERACTIVE_FEEDBACK='1'
 python step6_query_gate.py</div>
         <p class="muted">
@@ -445,7 +513,7 @@ python step6_query_gate.py</div>
       </section>
 
       <section class="card full">
-        <h2>12. Final Idea in Simple Words</h2>
+        <h2>13. Final Idea in Simple Words</h2>
         <p>
           The pipeline is a layered agricultural assistant. It does not just answer from a model. It first understands the question, looks up evidence,
           filters bad sources, adds weather and seasonal context when useful, and then applies a regulatory safety check before showing the result.
