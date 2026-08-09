@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agriculture RAG Pipeline Overview</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #08131f;
+      --panel: #0f1d2c;
+      --panel-2: #13283a;
+      --text: #e8f1fb;
+      --muted: #a9bdd0;
+      --accent: #7ee0a6;
+      --accent-2: #66b3ff;
+      --accent-3: #ffd166;
+      --danger: #ff7d7d;
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 18px 50px rgba(0,0,0,0.35);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(102,179,255,0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(126,224,166,0.14), transparent 26%),
+        linear-gradient(180deg, #08131f 0%, #0a1724 100%);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    .wrap {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 32px 18px 64px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(19,40,58,0.95), rgba(15,29,44,0.95));
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -120px -120px auto;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(126,224,166,0.16), transparent 68%);
+      pointer-events: none;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 3.7vw, 3.5rem);
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      max-width: 900px;
+      font-size: 1.02rem;
+      margin-top: 10px;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.92rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(19,40,58,0.88), rgba(15,29,44,0.88));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .card h2 {
+      font-size: 1.35rem;
+      color: #f5fbff;
+    }
+
+    .card h3 {
+      font-size: 1.05rem;
+      color: #f5fbff;
+      margin-top: 18px;
+    }
+
+    .full { grid-column: 1 / -1; }
+    .half { grid-column: span 6; }
+    .third { grid-column: span 4; }
+    .two-thirds { grid-column: span 8; }
+
+    @media (max-width: 960px) {
+      .half, .third, .two-thirds { grid-column: 1 / -1; }
+    }
+
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    ul, ol { margin: 0; padding-left: 20px; }
+    li { margin: 8px 0; }
+
+    .callout {
+      background: rgba(126,224,166,0.08);
+      border-left: 4px solid var(--accent);
+      padding: 14px 16px;
+      border-radius: 12px;
+      margin: 14px 0 0;
+      color: #d9f8e5;
+    }
+
+    .warning {
+      background: rgba(255,125,125,0.08);
+      border-left: 4px solid var(--danger);
+      color: #ffd6d6;
+    }
+
+    .codebox {
+      background: #06101a;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      overflow: auto;
+      color: #dbeafe;
+      font-family: "Cascadia Mono", "Consolas", monospace;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .step {
+      padding: 16px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+    }
+
+    .step strong {
+      color: var(--accent-2);
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(102,179,255,0.11);
+      color: #dbeefe;
+      border: 1px solid rgba(102,179,255,0.22);
+      font-size: 0.92rem;
+    }
+
+    .section-title {
+      margin-bottom: 6px;
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .mermaid {
+      background: #07111b;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Agriculture RAG Pipeline: Full Runtime Explainer</h1>
+      <p class="subtitle">
+        This document explains what runs when you start <strong>step6_query_gate.py</strong>, how a question moves through the pipeline,
+        what each major file does, and where the regulatory compliance layer fits in. Knowledge graph and trust scoring are intentionally skipped.
+      </p>
+      <div class="badges">
+        <span class="badge">Startup update</span>
+        <span class="badge">Semantic bridge</span>
+        <span class="badge">Entropy routing</span>
+        <span class="badge">Hybrid retrieval</span>
+        <span class="badge">Temporal filter</span>
+        <span class="badge">Phenology gate</span>
+        <span class="badge">Weather enrichment</span>
+        <span class="badge">Sentence provenance</span>
+        <span class="badge">Regulatory compliance</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="card full">
+        <h2>1. Big Picture</h2>
+        <p>
+          The system is a multi-stage agricultural question-answering pipeline. A user asks a query, the system enriches it with local scientific terms,
+          decides whether the question is simple or complex, retrieves source chunks, filters stale content, optionally adds weather and seasonal context,
+          generates an answer, maps sentences back to sources, and then runs a pesticide compliance check.
+        </p>
+        <div class="callout">
+          The current working setup includes the regulatory modules and the compliance scan. The knowledge graph and trust-scoring paths are not part of this explanation.
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>2. Runtime Flow Diagram</h2>
+        <div class="mermaid">
+flowchart TD
+    A[Run step6_query_gate.py] --> B[Load .env]
+    B --> C[Import regulatory_updater]
+    C --> D[run_startup_update()]
+    D --> D1[Check KB freshness]
+    D --> D2[Try CIB&RC scrape]
+    D --> D3[Try EU SANTE scrape]
+    D --> D4[If borderline pesticides exist\nrun Tavily + Groq verification]
+    D --> E[Load search components]
+    E --> E1[ChromaDB]
+    E --> E2[BM25 index/corpus]
+    E --> E3[Embedding model]
+    E --> F[Enter query loop]
+
+    F --> G[Step 0 Semantic bridge]
+    G --> H[Step 1 Classify query]
+    H --> I[Step 2 Measure entropy]
+    I --> J{Fast or slow path?}
+    J -->|Fast| K1[Fast answer model]
+    J -->|Slow| K2[Slow answer model]
+
+    K1 --> L[Retrieve chunks]
+    K2 --> L
+
+    L --> M[Temporal credibility filter]
+    M --> N[Phenological gate]
+    N --> O[Weather enrichment if relevant]
+    O --> P[Generate answer]
+
+    P --> Q[Sentence provenance]
+    Q --> R[Compliance scan]
+    R --> S{Pesticides found?}
+    S -->|No| T[Skip warning box]
+    S -->|Yes| U[Score pesticides]
+    U --> V{Borderline pesticides?}
+    V -->|Yes| W[Background Tavily/Groq verification]
+    V -->|No| X[No background verification]
+    U --> Y[Build compliance warning box]
+    Y --> Z[Append warning box to answer]
+
+    T --> AA[Optional feedback]
+    Z --> AA
+    X --> AA
+    W --> AA
+
+    AA --> AB[Print final answer and sources]
+        </div>
+      </section>
+
+      <section class="card half">
+        <h2>3. Startup: What Happens First</h2>
+        <div class="timeline">
+          <div class="step"><strong>Step A: Load environment</strong><br/>The script now loads <code>.env</code> before importing the regulatory updater, so API keys are available in-process.</div>
+          <div class="step"><strong>Step B: Regulatory auto-update</strong><br/>The updater runs freshness checks, tries CIB&RC and EU scrapes, and can do online verification for borderline pesticides.</div>
+          <div class="step"><strong>Step C: Search stack loads</strong><br/>ChromaDB, BM25, and the embedding model are loaded after the regulatory startup phase.</div>
+        </div>
+      </section>
+
+      <section class="card half">
+        <h2>4. Query-Time Flow</h2>
+        <div class="timeline">
+          <div class="step"><strong>Step 0: Semantic bridge</strong><br/>Maps folk/local terms to scientific crop terms using the bridge modules.</div>
+          <div class="step"><strong>Step 1: Classification</strong><br/>Determines whether the query is factual, diagnostic, recommendation, etc.</div>
+          <div class="step"><strong>Step 2: Entropy routing</strong><br/>Measures uncertainty and selects fast path or slow path.</div>
+        </div>
+      </section>
+
+      <section class="card two-thirds">
+        <h2>5. Retrieval and Answering</h2>
+        <p>
+          Once the route is chosen, the system retrieves candidate chunks from the vector store and BM25 corpus. Those chunks then pass through
+          temporal credibility filtering so old sources are reduced or removed. If the query is crop-related, the phenological gate checks whether the advice
+          fits the crop stage and season. Weather data is injected when the query needs live environmental context.
+        </p>
+        <div class="pill-row">
+          <span class="pill">Hybrid retrieval</span>
+          <span class="pill">Temporal decay</span>
+          <span class="pill">Phenological gating</span>
+          <span class="pill">Weather-aware advice</span>
+        </div>
+      </section>
+
+      <section class="card third">
+        <h2>6. Answer Output</h2>
+        <p>
+          The final answer is produced by Groq. Fast path uses the gate model; slow path uses the stronger answer model. After generation,
+          the answer goes through provenance and compliance checks before it is printed.
+        </p>
+      </section>
+
+      <section class="card full">
+        <h2>7. Files and Their Roles</h2>
+        <div class="grid" style="margin-top: 10px;">
+          <div class="card third">
+            <h3>step6_query_gate.py</h3>
+            <p>Main runtime orchestrator. It loads env vars, starts the regulatory updater, processes queries, retrieves chunks, generates the answer, and prints final output.</p>
+          </div>
+          <div class="card third">
+            <h3>semantic_bridge.py</h3>
+            <p>Normalizes rural or dialect phrasing into scientific crop/agriculture terminology. Helps retrieval match the right knowledge.</p>
+          </div>
+          <div class="card third">
+            <h3>adaptive_entropy.py</h3>
+            <p>Maintains entropy thresholds and records feedback so routing can adapt over time.</p>
+          </div>
+          <div class="card third">
+            <h3>temporal_credibility.py</h3>
+            <p>Filters stale chunks so outdated advice is less likely to reach the answer model.</p>
+          </div>
+          <div class="card third">
+            <h3>phenology_gate.py</h3>
+            <p>Checks whether a recommendation matches the crop stage or season before the chunk is used.</p>
+          </div>
+          <div class="card third">
+            <h3>step8_weather_rag.py</h3>
+            <p>Adds live weather context when the query is a recommendation or diagnosis and weather is relevant.</p>
+          </div>
+          <div class="card third">
+            <h3>sentence_provenance.py</h3>
+            <p>Maps answer sentences back to source chunks and reports confidence for traceability.</p>
+          </div>
+          <div class="card third">
+            <h3>regulatory_kb.py</h3>
+            <p>Static pesticide knowledge base: WHO hazard, India status, EU risk, organic status, PHI, MRL, and alternatives.</p>
+          </div>
+          <div class="card third">
+            <h3>compliance_scanner.py</h3>
+            <p>Detects pesticide mentions in the answer, scores them, and builds the compliance warning box.</p>
+          </div>
+          <div class="card third">
+            <h3>regulatory_updater.py</h3>
+            <p>Live regulatory updater that checks freshness, scrapes public sources, does Tavily + Groq verification, and manages the dynamic KB.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card half">
+        <h2>8. Regulatory Compliance Layer</h2>
+        <p>
+          This is the new Module 7/7B layer. It is designed to be conservative:
+        </p>
+        <ul>
+          <li>The answer is scanned for pesticide names.</li>
+          <li>Each pesticide is scored using WHO, India, EU, and organic penalties.</li>
+          <li>If no pesticide is found, no warning box is printed.</li>
+          <li>If pesticides are found, the regulatory report is appended to the answer.</li>
+          <li>If borderline pesticides are found, the updater can verify them asynchronously.</li>
+        </ul>
+        <div class="callout warning">
+          The updater only overrides the static KB when it gets strong enough online evidence. If Tavily/Groq evidence is weak, the system intentionally falls back to the static KB.
+        </div>
+      </section>
+
+      <section class="card half">
+        <h2>9. Why the Confidence Gate Exists</h2>
+        <p>
+          The online verifier is intentionally strict. If the search results do not explicitly show pesticide-specific regulatory evidence,
+          the dynamic result is rejected and the static KB remains authoritative. That is why you sometimes see:</p>
+        <div class="codebox">Confidence : 0.10
+Verified   : False
+Source URL : None</div>
+        <p>
+          This is not a failure. It is a safety rule that prevents the system from overwriting known regulatory data with weak web evidence.
+        </p>
+      </section>
+
+      <section class="card full">
+        <h2>10. Example Runtime Sequence</h2>
+        <ol>
+          <li>User runs <strong>python step6_query_gate.py</strong>.</li>
+          <li>The script loads <code>.env</code> and starts the regulatory updater.</li>
+          <li>The updater checks KB freshness and tries live scrapes; if unavailable, it falls back safely.</li>
+          <li>The search components load and the query loop starts.</li>
+          <li>The user asks a question.</li>
+          <li>The semantic bridge normalizes the query.</li>
+          <li>The classifier decides fast or slow path.</li>
+          <li>The retriever fetches chunks and the temporal/phenology/weather steps refine them.</li>
+          <li>The answer is generated.</li>
+          <li>Provenance and compliance steps run.</li>
+          <li>If pesticides appear, the compliance report is appended.</li>
+          <li>If needed, borderline pesticide verification starts in the background.</li>
+          <li>The final answer and sources are printed.</li>
+        </ol>
+      </section>
+
+      <section class="card full">
+        <h2>11. How to Check It in Terminal</h2>
+        <div class="codebox">$env:NO_INTERACTIVE_FEEDBACK='1'
+python step6_query_gate.py</div>
+        <p class="muted">
+          To test the online regulatory verification path specifically, load your <code>.env</code> and run the Tavily + Groq verification function from <code>regulatory_updater.py</code>.
+        </p>
+      </section>
+
+      <section class="card full">
+        <h2>12. Final Idea in Simple Words</h2>
+        <p>
+          The pipeline is a layered agricultural assistant. It does not just answer from a model. It first understands the question, looks up evidence,
+          filters bad sources, adds weather and seasonal context when useful, and then applies a regulatory safety check before showing the result.
+          The regulatory layer is there to prevent unsafe pesticide advice from being returned without warning.
+        </p>
+      </section>
+    </div>
+
+    <p class="footer">
+      Open this file directly in your browser. If you want, I can also create a second HTML file that is shorter and presentation-style, or add a clickable navigation sidebar.
+    </p>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        background: '#07111b',
+        primaryColor: '#13283a',
+        primaryTextColor: '#e8f1fb',
+        primaryBorderColor: '#66b3ff',
+        lineColor: '#7ee0a6',
+        secondaryColor: '#0f1d2c',
+        tertiaryColor: '#08131f',
+        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif'
+      }
+    });
+  </script>
+</body>
+</html>

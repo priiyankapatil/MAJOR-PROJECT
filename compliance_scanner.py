@@ -5,6 +5,12 @@ from regulatory_kb import (
     EU_EXPORT_RISK, ORGANIC_STATUS, ORGANIC_ALTERNATIVES
 )
 
+try:
+    from regulatory_updater import BORDERLINE_LOW, BORDERLINE_HIGH
+except Exception:
+    BORDERLINE_LOW = 0.40
+    BORDERLINE_HIGH = 0.70
+
 
 def extract_pesticides_from_text(text: str) -> list:
     matches = []
@@ -86,6 +92,7 @@ def scan_answer_for_compliance(answer_text: str) -> dict:
             "warning_needed": False,
             "any_banned": False,
             "any_eu_banned": False,
+            "borderline_pesticides": [],
         }
 
     scored_pesticides = [score_pesticide(key) for key in pesticides_found]
@@ -94,6 +101,11 @@ def scan_answer_for_compliance(answer_text: str) -> dict:
         4,
     )
     highest_risk_item = min(scored_pesticides, key=lambda item: item["compliance_score"])
+
+    borderline = [
+        p["pesticide"] for p in scored_pesticides
+        if BORDERLINE_LOW <= p["compliance_score"] <= BORDERLINE_HIGH
+    ]
 
     return {
         "pesticides_found": pesticides_found,
@@ -105,6 +117,7 @@ def scan_answer_for_compliance(answer_text: str) -> dict:
         "warning_needed": overall_compliance < 0.80,
         "any_banned": any(item["india_status"] == "BANNED" for item in scored_pesticides),
         "any_eu_banned": any(item["eu_export_risk"] == "BANNED_EU" for item in scored_pesticides),
+        "borderline_pesticides": borderline,
     }
 
 

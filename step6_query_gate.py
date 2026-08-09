@@ -25,6 +25,39 @@ import chromadb
 from groq import Groq
 # Lazy load SentenceTransformer to avoid initialization hang
 
+
+def _load_environment_variables() -> None:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        return
+    except Exception:
+        pass
+
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+
+    try:
+        with open(env_path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                os.environ.setdefault(key, value)
+    except Exception:
+        pass
+
+
+_load_environment_variables()
+
+from regulatory_updater import run_startup_update
+
+run_startup_update(borderline_pesticides=None)
+
 from config import (
     GROQ_API_KEY,
     GROQ_GATE_MODEL,
@@ -924,6 +957,21 @@ def query_gate(query, embedder, collection,
             print(f"   Warning needed      : {compliance_result['warning_needed']}")
             print(f"   Any India banned    : {compliance_result['any_banned']}")
             print(f"   Any EU banned       : {compliance_result['any_eu_banned']}")
+
+            if compliance_result.get("borderline_pesticides"):
+                print(f"\n   🔄 Borderline pesticides detected — triggering background verification...")
+                print(f"   Pesticides: {compliance_result['borderline_pesticides']}")
+
+                import threading
+
+                def background_verify():
+                    run_startup_update(
+                        borderline_pesticides=compliance_result["borderline_pesticides"]
+                    )
+
+                thread = threading.Thread(target=background_verify, daemon=True)
+                thread.start()
+                print(f"   ✅ Background verification started (non-blocking)")
 
             warning_box = build_compliance_warning_box(compliance_result)
             print(warning_box)
