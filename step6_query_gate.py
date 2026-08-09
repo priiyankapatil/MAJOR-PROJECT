@@ -637,6 +637,16 @@ def query_gate(query, embedder, collection,
     print(f"{'='*60}")
     print(f"❓ Query: {query}")
     print(f"{'─'*60}")
+    # ── STEP 0: Rural-to-Scientific Semantic Bridge ──
+    try:
+        from semantic_bridge import apply_semantic_bridge
+        bridge_result = apply_semantic_bridge(query)
+        if bridge_result.get("bridged"):
+            query = bridge_result.get("enriched", query)
+            print("   ✓ Query enriched with scientific taxonomy")
+    except Exception:
+        # Bridge unavailable — continue with original query
+        pass
 
     # ── Step 1: Classify ──
     print(f"\n📊 Step 1: Classifying query...")
@@ -902,23 +912,27 @@ def query_gate(query, embedder, collection,
     # ── Step 6: Collect routing feedback (optional, interactive) ──
     print("\n📝 Step 6: Recording routing feedback...")
     try:
-        feedback = input("   Was this answer accurate? (y/n, press Enter to skip): ").strip().lower()
-        if feedback in ['y', 'n']:
-            was_accurate = feedback == 'y'
-            try:
-                if ADAPTIVE_ENTROPY_AVAILABLE:
-                    record_feedback(
-                        query=query,
-                        entropy=entropy_score,
-                        path_used=path,
-                        was_accurate=was_accurate
-                    )
-                else:
-                    print("   ℹ️  Adaptive entropy not available — feedback not recorded")
-            except Exception as e:
-                print(f"   ⚠️  Failed to record feedback: {e}")
+        # Skip interactive feedback when NO_INTERACTIVE_FEEDBACK=1
+        if os.getenv("NO_INTERACTIVE_FEEDBACK") == "1":
+            print("   ℹ️  Skipping interactive feedback (NO_INTERACTIVE_FEEDBACK=1)")
         else:
-            print("   ⏭️  Feedback skipped")
+            feedback = input("   Was this answer accurate? (y/n, press Enter to skip): ").strip().lower()
+            if feedback in ['y', 'n']:
+                was_accurate = feedback == 'y'
+                try:
+                    if ADAPTIVE_ENTROPY_AVAILABLE:
+                        record_feedback(
+                            query=query,
+                            entropy=entropy_score,
+                            path_used=path,
+                            was_accurate=was_accurate
+                        )
+                    else:
+                        print("   ℹ️  Adaptive entropy not available — feedback not recorded")
+                except Exception as e:
+                    print(f"   ⚠️  Failed to record feedback: {e}")
+            else:
+                print("   ⏭️  Feedback skipped")
     except Exception:
         print("   ⏭️  Feedback skipped")
 
