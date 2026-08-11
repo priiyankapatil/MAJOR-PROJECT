@@ -340,6 +340,202 @@ def run_conformal_trust_scorer(query:  str,
     }
 
 
+# ══════════════════════════════════════════════════════════════
+# RETRIEVAL-LEVEL CONFORMAL TRUST SCORING
+# ══════════════════════════════════════════════════════════════
+
+def score_chunks_conformal(query: str,
+                            chunks: list,
+                            embedder) -> list:
+    """
+    Retrieval-level conformal trust scoring.
+
+    For each chunk: nonconformity = 1 - cosine_similarity(chunk, query)
+    Low nonconformity  = chunk strongly supports query = HIGH trust
+    High nonconformity = chunk weakly supports query  = LOW trust
+    """
+    if not chunks or not query:
+        return []
+
+    # Embed query
+    query_embedding = embedder.encode(
+        [query],
+        convert_to_numpy=True,
+        show_progress_bar=False
+    )
+
+    # Embed all chunks
+    chunk_texts = [
+        c.get("text", c) if isinstance(c, dict)
+        else str(c) for c in chunks
+    ]
+    chunk_embeddings = embedder.encode(
+        chunk_texts,
+        convert_to_numpy=True,
+        show_progress_bar=False
+    )
+
+    # Cosine similarity between each chunk and query
+    similarities = cosine_similarity(
+        query_embedding, chunk_embeddings
+    )[0]
+
+    # Nonconformity scores
+    nc_scores = 1.0 - similarities
+
+    # Build scored chunk list
+    scored = []
+    for i, (chunk, nc, sim) in enumerate(
+            zip(chunks, nc_scores, similarities)):
+
+        trust = float(sim)
+
+        # Label
+        if trust >= 0.75:
+            label = "HIGHLY RELEVANT \u2705"
+        elif trust >= 0.55:
+            label = "RELEVANT \u26a0\ufe0f"
+        elif trust >= 0.35:
+            label = "WEAKLY RELEVANT \U0001f536"
+        else:
+            label = "IRRELEVANT \u274c"
+
+        source = chunk.get("source", f"Chunk {i+1}") \
+                 if isinstance(chunk, dict) else f"Chunk {i+1}"
+        text   = chunk.get("text", str(chunk)) \
+                 if isinstance(chunk, dict) else str(chunk)
+
+        scored.append({
+            "chunk_index":         i + 1,
+            "source":              source,
+            "text_snippet":        text[:100] + "..."
+                                   if len(text) > 100 else text,
+            "similarity":          round(trust, 4),
+            "nonconformity_score": round(float(nc), 4),
+            "label":               label
+        })
+
+    # Sort by similarity descending
+    scored.sort(key=lambda x: x["similarity"], reverse=True)
+    return scored
+
+
+def apply_retrieval_conformal_threshold(
+        scored_chunks: list,
+        alpha: float = ALPHA) -> dict:
+    """
+    Applies conformal threshold to decide which chunks
+    are statistically trustworthy for retrieval.
+
+    Threshold q_hat = (1-alpha) quantile of nonconformity scores.
+    Chunks with nc_score <= q_hat are ACCEPTED.
+    Chunks with nc_score >  q_hat are REJECTED.
+    """
+    if not scored_chunks:
+        return {"accepted": [], "rejected": [], "q_hat": 0.5}
+
+    nc_scores = np.array(
+        [c["nonconformity_score"] for c in scored_chunks]
+    )
+    q_hat = compute_conformal_threshold(nc_scores, alpha)
+
+    accepted = []
+    rejected = []
+
+    for chunk in scored_chunks:
+        if chunk["nonconformity_score"] <= q_hat:
+            accepted.append(chunk)
+        else:
+            rejected.append(chunk)
+
+    return {
+        "accepted":       accepted,
+        "rejected":       rejected,
+        "q_hat":          round(q_hat, 4),
+        "total":          len(scored_chunks),
+        "accepted_count": len(accepted),
+        "rejected_count": len(rejected),
+        "confidence_pct": int((1 - alpha) * 100)
+    }
+
+
+def print_retrieval_trust_report(result: dict, query: str):
+    print("\n" + "="*65)
+    print("\u2551     RETRIEVAL-LEVEL CONFORMAL TRUST REPORT             \u2551")
+    print("="*65)
+    print(f"  Query              : {query[:60]}{'...' if len(query)>60 else ''}")
+    print(f"  Conformal q\u0302       : {result['q_hat']:.4f}")
+    print(f"  Confidence         : {result['confidence_pct']}% guarantee")
+    print(f"  Total chunks       : {result['total']}")
+    print(f"  \u2705 Accepted        : {result['accepted_count']}")
+    print(f"  \u274c Rejected        : {result['rejected_count']}")
+    print("="*65)
+
+    print("\n  \u2705 ACCEPTED CHUNKS (pass to LLM):\n")
+    for c in result["accepted"]:
+        print(f"  [{c['chunk_index']}] {c['label']}")
+        print(f"      Source     : {c['source']}")
+        print(f"      Similarity : {c['similarity']:.4f}  "
+              f"| Nonconformity: {c['nonconformity_score']:.4f}")
+        print(f"      Text       : {c['text_snippet']}")
+        print()
+
+    if result["rejected"]:
+        print("  \u274c REJECTED CHUNKS (filtered out):\n")
+        for c in result["rejected"]:
+            print(f"  [{c['chunk_index']}] {c['label']}")
+            print(f"      Source     : {c['source']}")
+            print(f"      Similarity : {c['similarity']:.4f}  "
+                  f"| Nonconformity: {c['nonconformity_score']:.4f}")
+            print(f"      Text       : {c['text_snippet']}")
+            print()
+
+    print("="*65 + "\n")
+
+
+def run_retrieval_conformal_trust(query:  str,
+                                   chunks: list) -> dict:
+    """
+    Master function for retrieval-level trust scoring.
+
+    Call this with:
+      - query  : the farmer's question
+      - chunks : list of retrieved chunks (dicts with 'text', 'source')
+
+    Returns accepted chunks that are statistically
+    trustworthy for passing to the LLM.
+    """
+    print("\n\U0001f50d RETRIEVAL-LEVEL CONFORMAL TRUST SCORER")
+    print("\u2500"*45)
+
+    embedder = load_embedder()
+
+    # Step 1: Score all chunks against query
+    print(f"\n\U0001f4d0 Step 1: Scoring {len(chunks)} chunks "
+          f"against query...")
+    scored_chunks = score_chunks_conformal(query, chunks, embedder)
+
+    for c in scored_chunks:
+        print(f"   [{c['chunk_index']}] {c['label']:30s} "
+              f"sim={c['similarity']:.4f}  "
+              f"nc={c['nonconformity_score']:.4f}  "
+              f"\u2192 {c['source']}")
+
+    # Step 2: Apply conformal threshold
+    print(f"\n\U0001f4ca Step 2: Applying conformal threshold (\u03b1={ALPHA})...")
+    result = apply_retrieval_conformal_threshold(
+        scored_chunks, alpha=ALPHA
+    )
+    print(f"   q\u0302 = {result['q_hat']:.4f}  \u2192  "
+          f"{result['accepted_count']} accepted, "
+          f"{result['rejected_count']} rejected")
+
+    # Step 3: Print full report
+    print_retrieval_trust_report(result, query)
+
+    return result
+
+
 if __name__ == "__main__":
     
     # ── TEST CASE 1: Well-supported answer ──
@@ -395,14 +591,68 @@ and costs only Rs 50 per bottle."""
         test_query_2, test_answer_2, test_chunks_2
     )
     
-    # ── Summary ──
+    # ── TEST CASE 3: Retrieval-level scoring ──
+    # Mix of relevant and irrelevant chunks
+
+    test_query_3 = (
+        "What fertilizer should I apply for tomato "
+        "during flowering stage?"
+    )
+
+    test_chunks_3 = [
+        {
+            "source": "TNAU Agriculture PDF.pdf",
+            "text":   "During flowering, apply potassium at "
+                      "50 kg/ha to improve fruit set in tomato. "
+                      "Phosphorus supports root development."
+        },
+        {
+            "source": "UAS Bangalore.pdf",
+            "text":   "Tomato flowering requires adequate boron "
+                      "and calcium. Apply 0.2% borax spray "
+                      "at flower initiation stage."
+        },
+        {
+            "source": "ANGRAU Journal.pdf",
+            "text":   "Wheat harvest should be done when grain "
+                      "moisture drops below 14%. Use combine "
+                      "harvester for large fields."
+        },
+        {
+            "source": "Crop Protection.pdf",
+            "text":   "Rice transplanting spacing should be "
+                      "20x15 cm for optimum yield. "
+                      "Apply basal dose at transplanting."
+        },
+        {
+            "source": "KAU Horticulture.pdf",
+            "text":   "Nitrogen fertilizer at vegetative stage "
+                      "promotes leaf growth. Reduce nitrogen "
+                      "during tomato flowering to prevent "
+                      "excessive vegetative growth."
+        },
+    ]
+
     print("\n" + "="*65)
-    print("COMPARISON SUMMARY")
+    print("TEST 3: Retrieval-level scoring")
+    print("(expect TNAU, UAS, KAU accepted; wheat/rice rejected)")
     print("="*65)
-    print(f"Test 1 (good answer)  : "
-          f"{result_1['aggregate']['overall_trust_score']:.4f} — "
-          f"{result_1['aggregate']['verdict']}")
-    print(f"Test 2 (hallucination): "
-          f"{result_2['aggregate']['overall_trust_score']:.4f} — "
-          f"{result_2['aggregate']['verdict']}")
+
+    result_3 = run_retrieval_conformal_trust(
+        test_query_3, test_chunks_3
+    )
+
+    # ── FULL SUMMARY ──
+    print("\n" + "="*65)
+    print("FULL TEST SUMMARY")
+    print("="*65)
+    print(f"  Test 1 — Generation trust (good answer)  : "
+          f"{result_1['aggregate']['overall_trust_score']:.4f} "
+          f"— {result_1['aggregate']['verdict']}")
+    print(f"  Test 2 — Generation trust (hallucination): "
+          f"{result_2['aggregate']['overall_trust_score']:.4f} "
+          f"— {result_2['aggregate']['verdict']}")
+    print(f"  Test 3 — Retrieval trust                 : "
+          f"{result_3['accepted_count']}/{result_3['total']} "
+          f"chunks accepted")
     print("="*65)
