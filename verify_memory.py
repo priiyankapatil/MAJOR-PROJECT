@@ -33,3 +33,4 @@ print(f'Parquet file size  : {parquet_size:.2f} MB')
 if os.path.exists(json_file):
     json_size = os.path.getsize(json_file)/1024/1024
     print(f'JSON file size     : {json_size:.2f} MB')
+    

@@ -729,6 +729,7 @@ def query_gate(query, embedder, collection,
     print(f"\n🔀 Step 3: Routing decision...")
     routing = make_routing_decision(entropy, classification, threshold=THRESHOLD)
     path    = routing["path"]
+    is_fast_path = (path == "fast")
 
     if path == "fast":
         print(f"   ⚡ FAST PATH selected")
@@ -752,88 +753,97 @@ def query_gate(query, embedder, collection,
               f"{chunks[0]['final_score']}")
 
     # ── Step 4C: Temporal credibility decay (optional) ──
-    try:
-        from temporal_credibility import (
-            score_all_chunks, filter_stale_chunks
-        )
-        from credibility_config import (
-            MIN_CREDIBILITY_THRESHOLD,
-            ENABLE_TEMPORAL_DECAY,
-            EVALUATION_YEAR,
-        )
-    except Exception:
-        ENABLE_TEMPORAL_DECAY = False
+    if not is_fast_path:
+        try:
+            from temporal_credibility import (
+                score_all_chunks, filter_stale_chunks
+            )
+            from credibility_config import (
+                MIN_CREDIBILITY_THRESHOLD,
+                ENABLE_TEMPORAL_DECAY,
+                EVALUATION_YEAR,
+            )
+        except Exception:
+            ENABLE_TEMPORAL_DECAY = False
 
-    if ENABLE_TEMPORAL_DECAY:
-        print("\n⏳ Step 4C: Applying Temporal Credibility Decay...")
-        # Use the classification result as the query type
-        scored_chunks = score_all_chunks(chunks, query_type=q_type, current_year=EVALUATION_YEAR)
-        filtered_chunks = filter_stale_chunks(scored_chunks, min_score=MIN_CREDIBILITY_THRESHOLD)
+        if ENABLE_TEMPORAL_DECAY:
+            print("\n⏳ Step 4C: Applying Temporal Credibility Decay...")
+            # Use the classification result as the query type
+            scored_chunks = score_all_chunks(chunks, query_type=q_type, current_year=EVALUATION_YEAR)
+            filtered_chunks = filter_stale_chunks(scored_chunks, min_score=MIN_CREDIBILITY_THRESHOLD)
 
-        print(f"   Chunks before filter : {len(scored_chunks)}")
-        print(f"   Chunks after filter  : {len(filtered_chunks)}")
-        for c in scored_chunks:
-            label = c.get('freshness_label', 'UNKNOWN')
-            score = c.get('temporal_score', 0)
-            src   = c.get('source_file', c.get('source', 'unknown'))
-            print(f"   [{label}] {src} → score: {score:.4f}")
+            print(f"   Chunks before filter : {len(scored_chunks)}")
+            print(f"   Chunks after filter  : {len(filtered_chunks)}")
+            for c in scored_chunks:
+                label = c.get('freshness_label', 'UNKNOWN')
+                score = c.get('temporal_score', 0)
+                src   = c.get('source_file', c.get('source', 'unknown'))
+                print(f"   [{label}] {src} → score: {score:.4f}")
 
-        chunks_to_use = filtered_chunks
+            chunks_to_use = filtered_chunks
+        else:
+            chunks_to_use = chunks
+
+        # Replace `chunks` with `chunks_to_use` for downstream steps
+        chunks = chunks_to_use
     else:
-        chunks_to_use = chunks
-
-    # Replace `chunks` with `chunks_to_use` for downstream steps
-    chunks = chunks_to_use
+        print("\n⏭️  Step 4C: Skipped (FAST path)")
+        scored_chunks = []  # ensure scored_chunks is defined for downstream reference
 
     # ── Step 4D: Phenological Gate (PGRA) ──
-    try:
-        from phenology_gate import apply_phenological_gate
-        PHENO_AVAILABLE = True
-    except Exception:
-        PHENO_AVAILABLE = False
-
-    if PHENO_AVAILABLE and q_type in ["RECOMMENDATION", "DIAGNOSTIC", "PROCEDURAL"]:
-        print("\n🚧 Step 4D: Applying Phenological Gate...")
-
-        # Default coordinates (India center) — weather step may override later
-        gate_lat = 20.5937
-        gate_lon = 78.9629
-
-        try:
-            gate_result = apply_phenological_gate(
-                chunks=chunks,
-                query=query,
-                lat=gate_lat,
-                lon=gate_lon
-            )
-
-            chunks_to_use_after_gate = gate_result.get("allowed_chunks", [])
-
-            print(f"\n   📋 Gate Summary:")
-            print(f"   Stage        : {gate_result.get('stage')} ({gate_result.get('stage_source')})")
-            print(f"   Input chunks : {gate_result.get('total_input')}")
-            print(f"   After gate   : {gate_result.get('allowed_count')} allowed, {gate_result.get('blocked_count')} blocked")
-
-            if gate_result.get("allowed_count", 0) == 0:
-                print("   ⚠️  Gate blocked all chunks — using original set as safety fallback")
-                chunks_to_use_after_gate = chunks
-
-            # Use gate-filtered chunks downstream
-            chunks = chunks_to_use_after_gate
-
-        except Exception as e:
-            print(f"   ⚠️  Phenological gate failed: {e}")
-            # keep existing chunks
-            chunks = chunks
+    if is_fast_path:
+        print("\n⏭️  Step 4D: Skipped (FAST path)")
     else:
-        print("\n⏭️  Step 4D: Phenological gate skipped (non-crop or unavailable)")
+        try:
+            from phenology_gate import apply_phenological_gate
+            PHENO_AVAILABLE = True
+        except Exception:
+            PHENO_AVAILABLE = False
+
+        if PHENO_AVAILABLE and q_type in ["RECOMMENDATION", "DIAGNOSTIC", "PROCEDURAL"]:
+            print("\n🚧 Step 4D: Applying Phenological Gate...")
+
+            # Default coordinates (India center) — weather step may override later
+            gate_lat = 20.5937
+            gate_lon = 78.9629
+
+            try:
+                gate_result = apply_phenological_gate(
+                    chunks=chunks,
+                    query=query,
+                    lat=gate_lat,
+                    lon=gate_lon
+                )
+
+                chunks_to_use_after_gate = gate_result.get("allowed_chunks", [])
+
+                print(f"\n   📋 Gate Summary:")
+                print(f"   Stage        : {gate_result.get('stage')} ({gate_result.get('stage_source')})")
+                print(f"   Input chunks : {gate_result.get('total_input')}")
+                print(f"   After gate   : {gate_result.get('allowed_count')} allowed, {gate_result.get('blocked_count')} blocked")
+
+                if gate_result.get("allowed_count", 0) == 0:
+                    print("   ⚠️  Gate blocked all chunks — using original set as safety fallback")
+                    chunks_to_use_after_gate = chunks
+
+                # Use gate-filtered chunks downstream
+                chunks = chunks_to_use_after_gate
+
+            except Exception as e:
+                print(f"   ⚠️  Phenological gate failed: {e}")
+                # keep existing chunks
+                chunks = chunks
+        else:
+            print("\n⏭️  Step 4D: Phenological gate skipped (non-crop or unavailable)")
 
     # ── Step 4B: Weather enrichment (for recommendations) ──
-    print(f"\n🌦️  Step 4B: Checking for weather enrichment...")
     weather_data = None
     weather_enrichment_applied = False
-    
-    if WEATHER_ENRICHMENT_AVAILABLE and q_type in ["RECOMMENDATION", "DIAGNOSTIC"] and is_weather_query(query):
+
+    if is_fast_path:
+        print(f"\n⏭️  Step 4B: Skipped (FAST path)")
+    elif WEATHER_ENRICHMENT_AVAILABLE and q_type in ["RECOMMENDATION", "DIAGNOSTIC"] and is_weather_query(query):
+        print(f"\n🌦️  Step 4B: Checking for weather enrichment...")
         print(f"   ✓ Weather-related {q_type} query detected")
         print(f"   Fetching live weather data...")
         
@@ -886,6 +896,7 @@ def query_gate(query, embedder, collection,
         else:
             print(f"   ⚠️  Weather data unavailable")
     else:
+        print(f"\n🌦️  Step 4B: Checking for weather enrichment...")
         if not WEATHER_ENRICHMENT_AVAILABLE:
             print(f"   ⚠️  Weather enrichment not available")
         elif q_type not in ["RECOMMENDATION", "DIAGNOSTIC"]:
@@ -908,45 +919,48 @@ def query_gate(query, embedder, collection,
     answer = answer_data.get('answer', '')
 
     # ── Step 5B: Sentence-level provenance mapping ──
-    try:
-        from sentence_provenance import build_provenance_map, print_provenance_report, get_provenance_summary
-        if answer and answer.strip() and "knowledge base doesn't have" not in answer:
-            print("\n🔬 Step 5B: Building Sentence-Level Provenance Map...")
+    if is_fast_path:
+        print("\n⏭️  Step 5B: Skipped (FAST path)")
+    else:
+        try:
+            from sentence_provenance import build_provenance_map, print_provenance_report, get_provenance_summary
+            if answer and answer.strip() and "knowledge base doesn't have" not in answer:
+                print("\n🔬 Step 5B: Building Sentence-Level Provenance Map...")
 
-            # Prefer using scored_chunks from temporal step, else construct from available chunks
-            try:
-                provenance_chunks = scored_chunks
-            except NameError:
-                provenance_chunks = []
-                for c in chunks:
-                    provenance_chunks.append({
-                        'text': c.get('text'),
-                        'source_file': c.get('source_file') or c.get('source'),
-                        'temporal_score': c.get('temporal_score', c.get('final_score', 0)),
-                        'freshness_label': c.get('freshness_label', 'UNKNOWN')
-                    })
+                # Prefer using scored_chunks from temporal step, else construct from available chunks
+                provenance_chunks = scored_chunks if scored_chunks else []
+                if not provenance_chunks:
+                    for c in chunks:
+                        provenance_chunks.append({
+                            'text': c.get('text'),
+                            'source_file': c.get('source_file') or c.get('source'),
+                            'temporal_score': c.get('temporal_score', c.get('final_score', 0)),
+                            'freshness_label': c.get('freshness_label', 'UNKNOWN')
+                        })
 
-            provenance_map = build_provenance_map(
-                answer_text=answer,
-                scored_chunks=provenance_chunks,
-                client=groq_client
-            )
+                provenance_map = build_provenance_map(
+                    answer_text=answer,
+                    scored_chunks=provenance_chunks,
+                    client=groq_client
+                )
 
-            print_provenance_report(provenance_map)
+                print_provenance_report(provenance_map)
 
-            provenance_summary = get_provenance_summary(provenance_map)
+                provenance_summary = get_provenance_summary(provenance_map)
 
-            print(f"\n🗺️  PROVENANCE : {provenance_summary['total_sentences']} sentences mapped")
-            print(f"   Avg Confidence  : {provenance_summary['avg_confidence']:.2f}")
-            print(f"   Avg Trust Score : {provenance_summary['avg_combined_score']:.4f}")
-            print(f"   Sources Traced  : {', '.join(provenance_summary['sources_used'])}")
-        else:
-            print("\n⏭️  Step 5B: Skipping provenance (no answer generated)")
-    except Exception as e:
-        print(f"   ⚠️  Provenance step failed: {e}")
+                print(f"\n🗺️  PROVENANCE : {provenance_summary['total_sentences']} sentences mapped")
+                print(f"   Avg Confidence  : {provenance_summary['avg_confidence']:.2f}")
+                print(f"   Avg Trust Score : {provenance_summary['avg_combined_score']:.4f}")
+                print(f"   Sources Traced  : {', '.join(provenance_summary['sources_used'])}")
+            else:
+                print("\n⏭️  Step 5B: Skipping provenance (no answer generated)")
+        except Exception as e:
+            print(f"   ⚠️  Provenance step failed: {e}")
 
     # ── Step 5C: Regulatory compliance scan ──
-    if answer and answer.strip() and "knowledge base doesn't have" not in answer:
+    if is_fast_path:
+        print("\n⏭️  Step 5C: Skipped (FAST path)")
+    elif answer and answer.strip() and "knowledge base doesn't have" not in answer:
         print("\n⚖️  Step 5C: Running Regulatory Compliance Scan...")
 
         compliance_result = scan_answer_for_compliance(answer)
