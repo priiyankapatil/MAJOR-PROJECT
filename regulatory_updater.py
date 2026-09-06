@@ -26,7 +26,7 @@ SCRAPE_TIMEOUT        = 10   # seconds
 BORDERLINE_LOW        = 0.40
 BORDERLINE_HIGH       = 0.70
 MAX_KB_AGE_DAYS       = 30   # warn if KB older than this
-LLM_MODEL             = "llama-3.3-70b-versatile"
+LLM_MODEL             = "openai/gpt-oss-20b"
 
 # ─── SCRAPE TARGETS ───
 SCRAPE_TARGETS = {

@@ -365,10 +365,9 @@ SOURCE_METADATA = {
 # ── Groq LLM Settings ──────────────────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# ── Model Assignment ───────────────────────
 # Fast model — simple tasks, classification,
 # entropy check, fast path answers
-GROQ_GATE_MODEL   = "llama-3.3-70b-versatile"
+GROQ_GATE_MODEL   = "openai/gpt-oss-20b"
 
 # Best model — complex answers, diagnosis,
 # recommendations, validation

@@ -12,15 +12,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-LLM_MODEL      = "llama-3.3-70b-versatile"
+LLM_MODEL      = "openai/gpt-oss-20b"
 EMBEDDER_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 ALPHA          = 0.10   # significance level → 1-alpha = 90% confidence guarantee
 TRUST_LOG_PATH = "conformal_trust_log.json"
 
 
+_CONFORMAL_EMBEDDER = None
+
 def load_embedder() -> SentenceTransformer:
-    print("Loading embedder for trust scorer...")
-    return SentenceTransformer(EMBEDDER_MODEL)
+    global _CONFORMAL_EMBEDDER
+    if _CONFORMAL_EMBEDDER is None:
+        print("Loading embedder for trust scorer...")
+        _CONFORMAL_EMBEDDER = SentenceTransformer(EMBEDDER_MODEL)
+    return _CONFORMAL_EMBEDDER
 
 
 def decompose_answer_to_claims(answer: str, client) -> list:
@@ -47,24 +52,55 @@ Return ONLY a JSON array of strings, no markdown, no backticks:
 
     response = client.chat.completions.create(
         model=LLM_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=500,
+        messages=[
+            {"role": "system", "content": "You decompose text into verifiable atomic claims. Return ONLY a valid JSON array of strings: [\"claim 1\", \"claim 2\"]. Do not wrap in markdown or backticks."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=800,
         temperature=0.0
     )
     
     raw = response.choices[0].message.content.strip()
-    raw = re.sub(r'```json|```', '', raw).strip()
-    
-    try:
-        claims = json.loads(raw)
-        if isinstance(claims, list):
-            return [str(c) for c in claims if c]
-        return []
-    except:
-        # Fallback: split by newline
-        lines = [l.strip().strip('"').strip(',') 
-                 for l in raw.split('\n') if l.strip()]
-        return lines[:10]
+    clean_raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
+    clean_raw = re.sub(r'\s*```$', '', clean_raw).strip()
+
+    # Strategy 1: Extract and parse JSON array substring
+    match = re.search(r'\[.*\]', clean_raw, re.DOTALL)
+    if match:
+        try:
+            claims = json.loads(match.group(0))
+            if isinstance(claims, list):
+                flattened = []
+                for item in claims:
+                    if isinstance(item, list):
+                        flattened.extend(item)
+                    elif isinstance(item, str) and item.strip().startswith('[') and item.strip().endswith(']'):
+                        try:
+                            inner = json.loads(item)
+                            if isinstance(inner, list):
+                                flattened.extend(inner)
+                            else:
+                                flattened.append(item)
+                        except Exception:
+                            flattened.append(item)
+                    else:
+                        flattened.append(item)
+                valid = [str(c).strip().strip('"').strip("'") for c in flattened if c and len(str(c).strip()) > 8]
+                if valid:
+                    return valid[:10]
+        except Exception:
+            pass
+
+    # Strategy 2: Extract all quoted strings
+    quoted = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', raw)
+    valid_quoted = [q.strip().replace('\\"', '"') for q in quoted if len(q.strip()) > 8 and not q.strip().startswith('[') and not q.strip().endswith(']')]
+    if len(valid_quoted) >= 2:
+        return valid_quoted[:10]
+
+    # Strategy 3: Split by newline
+    lines = [re.sub(r'^[-*0-9.)\s"\']+', '', l).strip().strip('"').strip("'").strip(',')
+             for l in raw.split('\n') if l.strip()]
+    return [l for l in lines if len(l) > 8][:10]
 
 
 def compute_nonconformity_scores(claims: list, 
@@ -301,7 +337,24 @@ def run_conformal_trust_scorer(query:  str,
     
     if not claims:
         print("   ⚠️  No claims extracted — cannot score")
-        return {"error": "No claims extracted"}
+        fallback_aggregate = {
+            "overall_trust_score": 0.0,
+            "verdict": "UNVERIFIED ⚠️",
+            "support_ratio": "0/0 claims",
+            "total_claims": 0,
+            "supported_claims": 0,
+            "unsupported_claims": 0,
+            "statistical_guarantee": "No claims extracted for verification",
+        }
+        return {
+            "query": query,
+            "claims": [],
+            "claim_results": [],
+            "aggregate": fallback_aggregate,
+            "q_hat": 0.0,
+            "alpha": ALPHA,
+            "error": "No claims extracted"
+        }
     
     # ── Step 2: Compute nonconformity scores ──
     print("\n📐 Step 2: Computing nonconformity scores...")
@@ -646,12 +699,15 @@ and costs only Rs 50 per bottle."""
     print("\n" + "="*65)
     print("FULL TEST SUMMARY")
     print("="*65)
+    t1_score = result_1.get("aggregate", {}).get("overall_trust_score", 0.0)
+    t1_verdict = result_1.get("aggregate", {}).get("verdict", "N/A")
+    t2_score = result_2.get("aggregate", {}).get("overall_trust_score", 0.0)
+    t2_verdict = result_2.get("aggregate", {}).get("verdict", "N/A")
+
     print(f"  Test 1 — Generation trust (good answer)  : "
-          f"{result_1['aggregate']['overall_trust_score']:.4f} "
-          f"— {result_1['aggregate']['verdict']}")
+          f"{t1_score:.4f} — {t1_verdict}")
     print(f"  Test 2 — Generation trust (hallucination): "
-          f"{result_2['aggregate']['overall_trust_score']:.4f} "
-          f"— {result_2['aggregate']['verdict']}")
+          f"{t2_score:.4f} — {t2_verdict}")
     print(f"  Test 3 — Retrieval trust                 : "
           f"{result_3['accepted_count']}/{result_3['total']} "
           f"chunks accepted")

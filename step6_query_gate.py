@@ -129,16 +129,11 @@ def calculate_entropy(token_logprobs):
 
 def measure_query_entropy(query):
     """
-    Send query to llama-3.3-70b-versatile.
-    Capture logprobs of first N tokens.
-    Calculate entropy from those logprobs.
-
-    MODEL: llama-3.3-70b-versatile
-    REASON: Fast + supports logprobs parameter
+    Send query to LLM to measure entropy / confidence.
     """
     try:
         response = client.chat.completions.create(
-            model      = GROQ_GATE_MODEL,   # llama-3.3-70b
+            model      = GROQ_ANSWER_MODEL,   # openai/gpt-oss-120b
             messages   = [
                 {
                     "role"   : "system",
@@ -190,55 +185,25 @@ def measure_query_entropy(query):
 
 # ─────────────────────────────────────────────
 # PART 2: QUERY CLASSIFICATION
-# Uses: llama-3.3-70b-versatile
-# Why: Fast instruction-following, JSON output
 # ─────────────────────────────────────────────
 
 def classify_query(query):
     """
-    Classify the query into one of 6 types.
+    Classify the query into one of the categories.
     Determines which pipeline to use downstream.
-
-    MODEL: llama-3.3-70b-versatile
-    REASON: Fast and accurate at classification.
-            Saves gpt-oss-120b quota for answers.
-
-    Returns:
-        dict with query_type, confidence, topics
     """
-    prompt = f"""Classify this agricultural question into 
-exactly ONE category.
+    prompt = f"""Classify this agricultural query. Reply with JSON only.
 
-Categories:
-FACTUAL       → simple definitions, basic facts
-               e.g. "What is vermicompost?"
-DIAGNOSTIC    → identifying problems, diseases, pests
-               e.g. "My tomato has yellow leaves"
-RECOMMENDATION → asking for advice, what to use/grow
-               e.g. "Which fertilizer for coconut?"
-PROCEDURAL    → how-to steps, methods, schedules
-               e.g. "How to prepare compost?"
-CURRENT       → needs latest/recent information
-               e.g. "New government farming scheme 2024"
-STATISTICAL   → numbers, yield data, area statistics
-               e.g. "Rice yield per hectare Tamil Nadu"
+Query: {query}
 
-Question: "{query}"
+Reply format:
+{{"type": "FACTUAL", "complexity": "simple", "confidence": 0.95, "topics": ["topic1"], "reason": "brief reason"}}
 
-Respond in JSON only — no explanation:
-{{
-  "query_type": "FACTUAL",
-  "confidence": 0.95,
-  "reasoning": "one line reason",
-  "key_topics": ["topic1", "topic2"],
-  "complexity": "simple"
-}}
-
-complexity must be "simple" or "complex"."""
+Type must be one of: FACTUAL, DIAGNOSTIC, RECOMMENDATION, PROCEDURAL"""
 
     try:
         response = client.chat.completions.create(
-            model    = GROQ_GATE_MODEL,   # llama-3.3-70b
+            model    = GROQ_ANSWER_MODEL,   # openai/gpt-oss-120b
             messages = [
                 {
                     "role"   : "system",
@@ -251,19 +216,21 @@ complexity must be "simple" or "complex"."""
                 }
             ],
             temperature     = 0,
-            max_tokens      = 200,
+            max_tokens      = 800,
             response_format = {"type": "json_object"},
         )
 
         raw  = response.choices[0].message.content
         data = json.loads(raw)
 
-        # Validate required fields
-        data.setdefault("query_type",  "FACTUAL")
-        data.setdefault("confidence",  0.7)
-        data.setdefault("reasoning",   "")
-        data.setdefault("key_topics",  [])
-        data.setdefault("complexity",  "simple")
+        # Validate and normalize required fields
+        query_type = data.get("type") or data.get("query_type") or "FACTUAL"
+        data["query_type"] = query_type
+        data["type"] = query_type
+        data.setdefault("confidence",  data.get("confidence", 0.95))
+        data.setdefault("reasoning",   data.get("reason", ""))
+        data.setdefault("key_topics",  data.get("topics", []))
+        data.setdefault("complexity",  data.get("complexity", "simple"))
 
         return data
 
@@ -1054,12 +1021,11 @@ def query_gate(query, embedder, collection,
 
 
 # ─────────────────────────────────────────────
-# TEST THE QUERY GATE
-# ─────────────────────────────────────────────
 
-if __name__ == "__main__":
-
-    # Load search components
+def load_components():
+    """
+    Load search components (ChromaDB, BM25 indices, SentenceTransformer embedder).
+    """
     print("⏳ Loading search components...", flush=True)
     sys.stdout.flush()
     
@@ -1090,13 +1056,22 @@ if __name__ == "__main__":
 
         print("✅ Ready!\n", flush=True)
         sys.stdout.flush()
+        return embedder, collection, bm25, corpus
         
     except Exception as e:
         print(f"\n❌ ERROR during loading: {e}", flush=True)
         sys.stdout.flush()
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        raise e
+
+
+# ─────────────────────────────────────────────
+# TEST THE QUERY GATE
+# ─────────────────────────────────────────────
+
+if __name__ == "__main__":
+    embedder, collection, bm25, corpus = load_components()
 
     # ── Test queries ──
     # Mix of fast and slow expected
