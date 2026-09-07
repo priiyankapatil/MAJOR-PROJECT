@@ -4,6 +4,10 @@
 # Supports both text-based and scanned PDFs (with OCR)
 # =============================================
 
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import fitz          # pymupdf
 import pdfplumber
 import os
@@ -24,54 +28,6 @@ try:
 except ImportError:
     OCR_AVAILABLE = False
     OCR_READER = None
-
-os.makedirs(EXTRACTED_DIR, exist_ok=True)
-
-def extract_all_pdfs():
-    pdf_files = [
-        f for f in os.listdir(RAW_PDF_DIR)
-        if f.lower().endswith(".pdf")
-    ]
-
-    print(f"\n📂 Found {len(pdf_files)} PDFs in folder")
-    
-    new_files  = []
-    skip_files = []
-
-    for f in pdf_files:
-        # Check if extracted JSON already exists
-        json_path = os.path.join(
-            EXTRACTED_DIR, f.replace(".pdf", ".json")
-        )
-        if os.path.exists(json_path):
-            skip_files.append(f)
-        else:
-            new_files.append(f)
-
-    print(f"   ⏭️  Skipping {len(skip_files)} "
-          f"already extracted files")
-    print(f"   🆕 Processing {len(new_files)} new files")
-
-    if not new_files:
-        print("\n✅ Nothing new to extract!")
-        return []
-
-    all_extracted = []
-
-    for pdf_file in tqdm(new_files, desc="Extracting new PDFs"):
-        pdf_path  = os.path.join(RAW_PDF_DIR, pdf_file)
-        extracted = extract_single_pdf(pdf_path)  # your existing function
-        all_extracted.append(extracted)
-
-        out_path = os.path.join(
-            EXTRACTED_DIR,
-            pdf_file.replace(".pdf", ".json")
-        )
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(extracted, f, indent=2, ensure_ascii=False)
-
-    print(f"\n✅ Extracted {len(new_files)} new PDFs")
-    return all_extracted
 
 os.makedirs(EXTRACTED_DIR, exist_ok=True)
 
@@ -132,10 +88,12 @@ def extract_text_from_image_ocr(page_pixmap):
         return ""
 
 
-def extract_single_pdf(pdf_path):
+def extract_single_pdf(pdf_path, page_numbers=None):
     """
     Extract all text + tables from one PDF.
     Supports both text-based and scanned PDFs (with OCR).
+    PyMuPDF is used as primary text extractor for natural reading order
+    and glyph integrity, while pdfplumber preserves table extraction.
     Returns a structured dictionary.
     """
     filename  = os.path.basename(pdf_path)
@@ -146,23 +104,37 @@ def extract_single_pdf(pdf_path):
     }
 
     try:
+        doc = fitz.open(pdf_path)
         with pdfplumber.open(pdf_path) as pdf:
             result["total_pages"] = len(pdf.pages)
 
-            for page_num, page in enumerate(pdf.pages):
+            target_indices = (
+                [p - 1 for p in page_numbers if 1 <= p <= len(pdf.pages)]
+                if page_numbers is not None
+                else range(len(pdf.pages))
+            )
+
+            for page_num in target_indices:
+                page_plumber = pdf.pages[page_num]
                 page_data = {
                     "page_number" : page_num + 1,
                     "text"        : "",
                     "tables_text" : [],
                 }
 
-                # ── Regular text ──
-                raw_text = page.extract_text()
+                # ── Regular text (PyMuPDF as primary extractor) ──
+                page_fitz = doc[page_num]
+                raw_text = page_fitz.get_text("text")
                 if raw_text:
                     page_data["text"] = raw_text.strip()
+                else:
+                    # Fallback to pdfplumber text if PyMuPDF extracted nothing
+                    fallback_text = page_plumber.extract_text()
+                    if fallback_text:
+                        page_data["text"] = fallback_text.strip()
 
-                # ── Tables ──
-                tables = page.extract_tables()
+                # ── Tables (pdfplumber table extraction preserved) ──
+                tables = page_plumber.extract_tables()
                 if tables:
                     for table in tables:
                         readable = table_to_readable_text(table)
@@ -171,31 +143,34 @@ def extract_single_pdf(pdf_path):
 
                 # ── If page has no text but has images, try OCR ──
                 if not page_data["text"] and OCR_AVAILABLE:
-                    # Use pymupdf to render page as image and OCR it
-                    doc = fitz.open(pdf_path)
-                    page_fitz = doc[page_num]
                     pix = page_fitz.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
                     ocr_text = extract_text_from_image_ocr(pix)
                     if ocr_text:
                         page_data["text"] = ocr_text
-                    doc.close()
 
                 result["pages"].append(page_data)
+        doc.close()
 
     except Exception as e:
-        print(f"  ⚠️  pdfplumber failed for {filename}: {e}")
-        print(f"  🔄  Falling back to pymupdf...")
+        print(f"  ⚠️  Primary extraction failed for {filename}: {e}")
+        print(f"  🔄  Falling back to pure pymupdf...")
 
         # Fallback: use pymupdf if pdfplumber fails
         try:
             doc = fitz.open(pdf_path)
             result["total_pages"] = len(doc)
-            for page_num, page in enumerate(doc):
-                text = page.get_text("text")
+            target_indices = (
+                [p - 1 for p in page_numbers if 1 <= p <= len(doc)]
+                if page_numbers is not None
+                else range(len(doc))
+            )
+            for page_num in target_indices:
+                page_fitz = doc[page_num]
+                text = page_fitz.get_text("text")
                 
                 # If no text extracted and OCR available, try OCR
                 if not text.strip() and OCR_AVAILABLE:
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    pix = page_fitz.get_pixmap(matrix=fitz.Matrix(2, 2))
                     text = extract_text_from_image_ocr(pix)
                 
                 result["pages"].append({
@@ -209,12 +184,10 @@ def extract_single_pdf(pdf_path):
 
     return result
 
-    return result
 
-
-def extract_all_pdfs():
+def extract_all_pdfs(force=False):
     """
-    Extract text from new PDFs only (skip already processed).
+    Extract text from new PDFs only (skip already processed unless force=True).
     Supports both text-based and scanned PDFs (with OCR).
     """
     pdf_files = [
@@ -234,7 +207,7 @@ def extract_all_pdfs():
         json_path = os.path.join(
             EXTRACTED_DIR, f.replace(".pdf", ".json")
         )
-        if os.path.exists(json_path):
+        if os.path.exists(json_path) and not force:
             skip_files.append(f)
         else:
             new_files.append(f)
@@ -282,4 +255,6 @@ def extract_all_pdfs():
 
 
 if __name__ == "__main__":
-    extract_all_pdfs()
+    import sys
+    force_run = "--force" in sys.argv or "-f" in sys.argv
+    extract_all_pdfs(force=force_run)
