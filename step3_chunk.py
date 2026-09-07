@@ -3,6 +3,10 @@
 # PHASE 6: HDR Chunking of all 6 PDFs
 # =============================================
 
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import os
 import json
 import pickle
@@ -53,9 +57,9 @@ print("✅ Models loaded!\n")
 # These ALWAYS start a new chunk
 # ─────────────────────────────────────────────
 AGRI_SECTION_HEADERS = re.compile(
-    r'^('
+    r'^\s*('
     r'Pest[s]?|Disease[s]?|Varieties|Variety|'
-    r'Manur(e|ing)|Fertiliz(er|ation)|Nutrient|'
+    r'Manur(?:e|ing)|Fertiliz(?:er|ation)|Nutrient|'
     r'Irrigation|Water\s*Management|'
     r'Harvesting|Harvest|Post.?Harvest|'
     r'Nursery|Sowing|Planting|Transplanting|'
@@ -65,7 +69,7 @@ AGRI_SECTION_HEADERS = re.compile(
     r'Seed\s*Treatment|Crop\s*Protection|'
     r'Storage|Processing|Yield|Economics|'
     r'Climate|Season|Package\s*of\s*Practices'
-    r')',
+    r')\s*(?:[:\-–—]|\s*$)',
     re.IGNORECASE
 )
 
@@ -137,19 +141,84 @@ def get_nsp_score(sent1, sent2):
     return scores[0] if scores else 1.0
 
 
+def split_oversized_sentence(text, max_size=MAX_CHUNK_SIZE):
+    """
+    Split an individual sentence that exceeds max_size into smaller parts.
+    Attempts natural splits on newline, semicolon, colon, comma, or whitespace.
+    Falls back to a hard character cut if no delimiter is found.
+    Preserves all text content and never produces empty parts.
+    """
+    text = text.strip()
+    if not text:
+        return []
+    if len(text) <= max_size:
+        return [text]
+
+    parts = []
+    remaining = text
+    delimiters = ['\n', ';', ':', ',', ' ']
+
+    while len(remaining) > max_size:
+        window = remaining[:max_size]
+        cut_idx = -1
+
+        # Search for highest priority delimiter from right to left in window
+        for delim in delimiters:
+            pos = window.rfind(delim)
+            if pos > int(max_size * 0.3):
+                cut_idx = pos + len(delim)
+                break
+
+        # If not found in preferred upper range, try any delimiter position > 0
+        if cut_idx == -1:
+            for delim in delimiters:
+                pos = window.rfind(delim)
+                if pos > 0:
+                    cut_idx = pos + len(delim)
+                    break
+
+        # Fallback to hard character cut if no delimiter found
+        if cut_idx <= 0:
+            cut_idx = max_size
+
+        chunk = remaining[:cut_idx].strip()
+        if chunk:
+            parts.append(chunk)
+        remaining = remaining[cut_idx:].strip()
+
+    if remaining:
+        parts.append(remaining)
+
+    return parts
+
+
 def hdr_chunk(text):
     """
     HDR Chunking with GPU-accelerated batch processing:
     1. Split text into sentences (spaCy)
-    2. Batch process sentence pairs through BERT NSP for efficiency
-    3. Group sentences between boundaries into chunks
+    2. Split any individual oversized sentence exceeding MAX_CHUNK_SIZE
+    3. Batch process sentence pairs through BERT NSP for efficiency
+    4. Group sentences between boundaries into chunks
     """
     # Sentence splitting
     doc       = nlp(text[:1_000_000])   # spaCy limit safety
-    sentences = [
+    raw_sentences = [
         s.text.strip() for s in doc.sents
         if len(s.text.strip()) > 15     # skip tiny fragments
     ]
+
+    if not raw_sentences:
+        return []
+
+    # Flatten sentences: any individual sentence exceeding MAX_CHUNK_SIZE
+    # is safely partitioned into smaller sub-sentences.
+    sentences = []
+    for s in raw_sentences:
+        if len(s) > MAX_CHUNK_SIZE:
+            sub_sents = split_oversized_sentence(s, MAX_CHUNK_SIZE)
+            sentences.extend(sub_sents)
+        else:
+            sentences.append(s)
 
     if not sentences:
         return []
@@ -195,6 +264,10 @@ def hdr_chunk(text):
             chunk_text = " ".join(current_sents).strip()
             if len(chunk_text) >= MIN_CHUNK_SIZE:
                 chunks.append(chunk_text)
+            elif chunks:
+                chunks[-1] = (chunks[-1] + " " + chunk_text).strip()
+            elif chunk_text:
+                chunks.append(chunk_text)
             current_sents = [sent]
             current_len   = len(sent)
         else:
@@ -206,6 +279,10 @@ def hdr_chunk(text):
         chunk_text = " ".join(current_sents).strip()
         if len(chunk_text) >= MIN_CHUNK_SIZE:
             chunks.append(chunk_text)
+        elif chunks:
+            chunks[-1] = (chunks[-1] + " " + chunk_text).strip()
+        elif chunk_text:
+            chunks.append(chunk_text)
 
     return chunks
 
@@ -214,6 +291,7 @@ def extract_crop_tags(text):
     """
     Tag which crops are mentioned in a chunk.
     Useful for filtered retrieval later.
+    Uses regex word boundaries and handles known false-positive compound terms.
     """
     CROPS = [
         "rice", "wheat", "maize", "cotton", "sugarcane",
@@ -225,8 +303,23 @@ def extract_crop_tags(text):
         "tea", "coffee", "rubber", "arecanut",
         "jasmine", "marigold", "rose", "orchid",
     ]
-    tl = text.lower()
-    return [c for c in CROPS if c in tl]
+
+    tags = []
+    for c in CROPS:
+        pattern = r'\b' + re.escape(c) + r'\b'
+        if not re.search(pattern, text, re.IGNORECASE):
+            continue
+
+        # Handle known compound terms conservatively:
+        # 'tea mosquito bug' refers to an insect pest of cashew, not tea cultivation.
+        if c == "tea":
+            text_no_pest = re.sub(r'\btea\s+mosquito(\s+bug)?\b', '', text, flags=re.IGNORECASE)
+            if not re.search(r'\btea\b', text_no_pest, re.IGNORECASE):
+                continue
+
+        tags.append(c)
+
+    return tags
 
 
 def save_chunks_batch(chunks, chunks_path):

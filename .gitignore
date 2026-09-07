@@ -3,3 +3,7 @@ __pycache__/
 *.csv
 *.json
 .env
+
+# Temporary evaluation and baseline comparison artifacts
+*old_baseline*
+all_chunks_old_baseline.parquet
