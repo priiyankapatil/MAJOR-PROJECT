@@ -12,3 +12,7 @@ __pycache__/
 all_chunks_old_baseline.parquet
 backup_indexes_before_step4/
 backup_*/
+
+# Runtime retrieval index stores
+vector_store/
+knowledge_graph/*.pkl
