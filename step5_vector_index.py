@@ -247,35 +247,48 @@ def sparse_search(query, bm25, corpus, top_k=10):
     return sparse_results
 
 
+_CROSS_ENCODER = None
+
+
+def get_cross_encoder():
+    """
+    Lazy singleton loader for CrossEncoder.
+    Reuses the in-memory instance across all queries without re-instantiation.
+    """
+    global _CROSS_ENCODER
+    if _CROSS_ENCODER is None:
+        from sentence_transformers import CrossEncoder
+        _CROSS_ENCODER = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    return _CROSS_ENCODER
+
+
 def hybrid_search(
     query,
     bm25,
     corpus,
     collection,
     embedder,
-    top_k      = 5,
-    dense_weight  = 0.6,
-    sparse_weight = 0.4
+    top_k         = 5,
+    dense_weight  = 0.5,
+    sparse_weight = 0.5,
+    rerank        = True
 ):
     """
-    Hybrid Retrieval: Dense + Sparse combined.
+    Two-Stage Hybrid Retrieval:
+    Stage 1: Top-K * 3 Dense + Top-K * 3 BM25 candidates fused with Equal 0.5/0.5 + Trust Weighting.
+    Stage 2: Cross-Encoder joint reranking on unified candidate pool using ms-marco-MiniLM-L-6-v2.
     
-    Formula:
-    final_score = (dense_weight × dense_score)
-                + (sparse_weight × sparse_score)
-                × trust_weight
+    Formula (Stage 1 Fusion):
+    fusion_score = ((dense_weight × dense_score) + (sparse_weight × sparse_score)) × trust_weight
     
-    Args:
-        dense_weight  : how much to weight semantic similarity
-        sparse_weight : how much to weight keyword matching
-        
-    Returns top_k results ranked by final score.
+    Returns top_k results ranked by cross-encoder score (or fusion_score if rerank=False).
     """
-    # Step 1: Get results from both systems
+    # Step 1: Candidate Generation (top_k * 3 for Dense and BM25)
+    candidate_k = top_k * 3
     dense_results  = dense_search(query, collection, embedder,
-                                  top_k=top_k * 2)
+                                  top_k=candidate_k)
     sparse_results = sparse_search(query, bm25, corpus,
-                                   top_k=top_k * 2)
+                                   top_k=candidate_k)
 
     # Step 2: Merge results by chunk_id
     merged = {}
@@ -307,17 +320,15 @@ def hybrid_search(
                 "sparse_score": r["sparse_score"],
             }
 
-    # Step 3: Calculate final hybrid score
-    # Also apply RA-RAG trust weight here
-    # Step 3: Calculate final hybrid score
+    # Step 3: Calculate baseline hybrid fusion score with RA-RAG trust weighting
     for cid, item in merged.items():
         raw_score = (
             dense_weight  * item["dense_score"] +
             sparse_weight * item["sparse_score"]
         )
-        # Only apply trust weight if score > 0
         trust = item["trust_weight"] if item["trust_weight"] > 0 else 1.0
-        item["final_score"] = round(raw_score * trust, 4)
+        item["fusion_score"] = round(raw_score * trust, 4)
+        item["final_score"]  = item["fusion_score"]
 
         # Tag where result came from
         item["found_by"] = []
@@ -325,12 +336,26 @@ def hybrid_search(
         if item["sparse_score"] > 0: item["found_by"].append("sparse")
         if len(item["found_by"]) == 2: item["found_by"] = ["both"]
 
-    # Step 4: Sort by final score and return top_k
-    ranked = sorted(
-        merged.values(),
-        key    = lambda x: x["final_score"],
-        reverse= True
-    )[:top_k]
+    # Step 4: Stage 2 Cross-Encoder Reranking
+    candidate_list = list(merged.values())
+    if rerank and candidate_list:
+        ce = get_cross_encoder()
+        pairs = [(query, c["text"]) for c in candidate_list]
+        ce_scores = ce.predict(pairs, batch_size=32)
+        for c, score in zip(candidate_list, ce_scores):
+            c["cross_encoder_score"] = round(float(score), 4)
+
+        ranked = sorted(
+            candidate_list,
+            key    = lambda x: x["cross_encoder_score"],
+            reverse= True
+        )[:top_k]
+    else:
+        ranked = sorted(
+            candidate_list,
+            key    = lambda x: x["final_score"],
+            reverse= True
+        )[:top_k]
 
     return ranked
 

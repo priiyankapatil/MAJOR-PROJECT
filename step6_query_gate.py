@@ -549,11 +549,12 @@ def retrieve_chunks(query, embedder, collection,
         return [t for t in text.split()
                 if t not in STOP and len(t) >= 2]
 
-    # Dense search
+    # Dense search (top_k * 3 candidate pool)
+    candidate_k = top_k * 3
     q_emb  = embedder.encode([query]).tolist()
     d_res  = collection.query(
         query_embeddings = q_emb,
-        n_results        = top_k * 2,
+        n_results        = candidate_k,
         include          = ["documents", "metadatas", "distances"]
     )
 
@@ -574,12 +575,12 @@ def retrieve_chunks(query, embedder, collection,
             "sparse_score": 0.0,
         }
 
-    # Sparse BM25
+    # Sparse BM25 (top_k * 3 candidate pool)
     tokens = tokenize(query)
     scores = bm25.get_scores(tokens)
     top_i  = sorted(range(len(scores)),
                     key=lambda i: scores[i],
-                    reverse=True)[:top_k * 2]
+                    reverse=True)[:candidate_k]
     max_s  = max(scores) if max(scores) > 0 else 1.0
 
     for idx in top_i:
@@ -599,19 +600,33 @@ def retrieve_chunks(query, embedder, collection,
                 "sparse_score": ss,
             }
 
-    # Final score with trust weight
+    # Baseline Equal 0.5/0.5 fusion with trust weight
     for item in merged.values():
-        raw = (0.6 * item["dense_score"] +
-               0.4 * item["sparse_score"])
-        item["final_score"] = round(
-            raw * item["trust_weight"], 4
-        )
+        raw = (0.5 * item["dense_score"] +
+               0.5 * item["sparse_score"])
+        trust = item["trust_weight"] if item["trust_weight"] > 0 else 1.0
+        item["fusion_score"] = round(raw * trust, 4)
+        item["final_score"]  = item["fusion_score"]
 
-    return sorted(
-        merged.values(),
-        key    = lambda x: x["final_score"],
-        reverse= True
-    )[:top_k]
+    # Stage 2: Cross-Encoder Reranking
+    candidate_list = list(merged.values())
+    if candidate_list:
+        from step5_vector_index import get_cross_encoder
+        ce = get_cross_encoder()
+        pairs = [(query, c["text"]) for c in candidate_list]
+        ce_scores = ce.predict(pairs, batch_size=32)
+        for c, score in zip(candidate_list, ce_scores):
+            c["cross_encoder_score"] = round(float(score), 4)
+
+        ranked = sorted(
+            candidate_list,
+            key    = lambda x: x["cross_encoder_score"],
+            reverse= True
+        )[:top_k]
+    else:
+        ranked = []
+
+    return ranked
 
 
 # ─────────────────────────────────────────────
@@ -1052,6 +1067,13 @@ def load_components():
         from sentence_transformers import SentenceTransformer
         embedder = SentenceTransformer(EMBEDDING_MODEL)
         print("  ✓ Embedder loaded", flush=True)
+        sys.stdout.flush()
+
+        print("  Loading Cross-Encoder reranker...", flush=True)
+        sys.stdout.flush()
+        from step5_vector_index import get_cross_encoder
+        _ = get_cross_encoder()
+        print("  ✓ Cross-Encoder loaded", flush=True)
         sys.stdout.flush()
 
         print("✅ Ready!\n", flush=True)

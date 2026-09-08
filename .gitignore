@@ -4,6 +4,11 @@ __pycache__/
 *.json
 .env
 
+# Allow ground-truth benchmark dataset while keeping raw evaluation results ignored
+!evaluation/retrieval/retrieval_benchmark_dataset.json
+
 # Temporary evaluation and baseline comparison artifacts
 *old_baseline*
 all_chunks_old_baseline.parquet
+backup_indexes_before_step4/
+backup_*/

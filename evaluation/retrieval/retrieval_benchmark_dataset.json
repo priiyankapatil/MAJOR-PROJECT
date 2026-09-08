@@ -1,0 +1,367 @@
+[
+  {
+    "query_id": "Q01",
+    "query": "What is the recommended malathion and sugar concentration to control Bacterocera fruit fly?",
+    "category": "exact_lexical",
+    "relevant_chunk_ids": [
+      "chunk_003966",
+      "chunk_003736"
+    ],
+    "relevance_note": "Provides exact chemical concentration (malathion 0.1% emulsion + 2% sugar) and mechanical bag protection against Bacterocera fruit fly.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q02",
+    "query": "What are the establishment advantages of softwood grafts in Anacardium occidentale?",
+    "category": "exact_lexical",
+    "relevant_chunk_ids": [
+      "chunk_002901"
+    ],
+    "relevance_note": "Specifies Anacardium occidentale (cashew) softwood grafting advantages including high establishment rate and early flowering.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q03",
+    "query": "What is the recommended tine spacing for Happy Seeder and Coragen 18.5 SC dose in wheat?",
+    "category": "exact_lexical",
+    "relevant_chunk_ids": [
+      "chunk_000788"
+    ],
+    "relevance_note": "Provides exact technical specs: Happy Seeder with 8 inch tine spacing for wheat sowing and Coragen 18.5 SC @ 40 ml/acre.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q04",
+    "query": "What is the application rate of talc-based formulation of Trichoderma viride for seed treatment?",
+    "category": "exact_lexical",
+    "relevant_chunk_ids": [
+      "chunk_002690"
+    ],
+    "relevance_note": "States exact dosage of talc-based Trichoderma viride as prophylactic seed treatment at 10 g per kg seed.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q05",
+    "query": "What are the statutory restrictions on the use of Aluminium phosphide and Fenitrothion in India?",
+    "category": "exact_lexical",
+    "relevant_chunk_ids": [
+      "chunk_000791",
+      "chunk_000795"
+    ],
+    "relevance_note": "Cites statutory regulatory schedule where Aluminium phosphide is restricted and Fenitrothion is banned in agriculture except locust control.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q06",
+    "query": "Which pathogen causes linseed rust characterized by pink fungal sori on leaves and stems?",
+    "category": "exact_lexical",
+    "relevant_chunk_ids": [
+      "chunk_001295"
+    ],
+    "relevance_note": "Identifies Melampsora lini as the causative pathogen of rust in linseed characterized by pink fungal sori.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q07",
+    "query": "How does applying organic straw mulching help conserve soil moisture in rainfed agriculture?",
+    "category": "conceptual_paraphrased",
+    "relevant_chunk_ids": [
+      "chunk_001084"
+    ],
+    "relevance_note": "Explains how straw mulching reduces surface evaporation, regulates soil temperature, and enhances soil water retention.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q08",
+    "query": "Why does excessive application of nitrogenous fertilizers increase crop vulnerability to insect pests?",
+    "category": "conceptual_paraphrased",
+    "relevant_chunk_ids": [
+      "chunk_001041"
+    ],
+    "relevance_note": "Discusses how imbalanced high nitrogen causes succulent vegetative growth that attracts and aggravates insect-pest infestations.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q09",
+    "query": "How do green manure crops like cowpea, dhaincha, or sunnhemp contribute to organic nitrogen enrichment in rice?",
+    "category": "conceptual_paraphrased",
+    "relevant_chunk_ids": [
+      "chunk_001520"
+    ],
+    "relevance_note": "Describes sowing sunnhemp/dhaincha at 20 kg/acre and incorporating 50-day-old biomass before rice transplanting to replace chemical N.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q10",
+    "query": "What is the mechanism and role of Azospirillum biofertilizers in enhancing root development and nutrient uptake?",
+    "category": "conceptual_paraphrased",
+    "relevant_chunk_ids": [
+      "chunk_001999"
+    ],
+    "relevance_note": "Explains nitrogen fixation and growth hormone secretion by Azospirillum inoculants to stimulate root proliferation and nutrient uptake.",
+    "source_files": [
+      "Crop-Management_1.pdf"
+    ]
+  },
+  {
+    "query_id": "Q11",
+    "query": "Why is mechanical destruction of congregating insect stages recommended in sustainable pest management?",
+    "category": "conceptual_paraphrased",
+    "relevant_chunk_ids": [
+      "chunk_011830"
+    ],
+    "relevance_note": "Details physical and mechanical collection/destruction of sluggish and clustered pest life-stages to suppress initial population build-up.",
+    "source_files": [
+      "The TNAU Horticulture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q12",
+    "query": "How does timely weed management during the critical crop growth period influence nutrient and moisture competition?",
+    "category": "conceptual_paraphrased",
+    "relevant_chunk_ids": [
+      "chunk_003231"
+    ],
+    "relevance_note": "Outlines hoeing and weeding 10-15 days after germination to prevent early crop-weed competition for light, water, and nutrients.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q13",
+    "query": "What is the seed rate requirement for normal vs hybrid varieties in tomato, chilli, and brinjal?",
+    "category": "crop_specific",
+    "relevant_chunk_ids": [
+      "chunk_007442"
+    ],
+    "relevance_note": "Lists exact seed rates: Tomato 400-500g (hybrid 125-150g), Chili 500g (hybrid 200g), Brinjal 500g (hybrid 200g).",
+    "source_files": [
+      "Rabi-Agro-Advisory-2021-22_0.pdf"
+    ]
+  },
+  {
+    "query_id": "Q14",
+    "query": "Why are older arabica coffee varieties like Kents and Coorgs considered vulnerable to leaf rust disease?",
+    "category": "crop_specific",
+    "relevant_chunk_ids": [
+      "chunk_003620"
+    ],
+    "relevance_note": "Explicitly notes that legacy Arabica cultivars Kents and Coorgs are highly susceptible to leaf rust (Hemileia vastatrix).",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q15",
+    "query": "What are the major damage symptoms and botanical oil control options for Tea Mosquito Bug in cashew?",
+    "category": "crop_specific",
+    "relevant_chunk_ids": [
+      "chunk_011831",
+      "chunk_002951"
+    ],
+    "relevance_note": "Details inflorescence drying, panicle scorching, and recommended sprays of neem oil (0.5-1%) or Pongamia oil (2%) during flushing.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf",
+      "The TNAU Horticulture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q16",
+    "query": "How is irrigation scheduled in sugarcane based on climatological pan evaporation approach?",
+    "category": "crop_specific",
+    "relevant_chunk_ids": [
+      "chunk_009552"
+    ],
+    "relevance_note": "Provides climatological IW/CPE ratio scheduling criteria and critical water management stages in sugarcane.",
+    "source_files": [
+      "The TNAU Agriculture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q17",
+    "query": "Which bacterial wilt resistant varieties of tomato are recommended by Kerala Agricultural University?",
+    "category": "crop_specific",
+    "relevant_chunk_ids": [
+      "chunk_003772"
+    ],
+    "relevance_note": "Specifies KAU bacterial wilt resistant tomato cultivars: Sakthi, Mukthi, Anagha, and Vellayani Vijey.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q18",
+    "query": "Which rice cultivars like CO51 and ADT47 are recommended for zinc biofortification strategies?",
+    "category": "crop_specific",
+    "relevant_chunk_ids": [
+      "chunk_008935"
+    ],
+    "relevance_note": "Lists zinc biofortification cultivars (CO51, CO47, ADT 47, ADT 37) and basal zinc fertilization strategies in rice.",
+    "source_files": [
+      "The TNAU Agriculture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q19",
+    "query": "What insect pest causes dead hearts in the vegetative phase and completely chaffy white ear heads during the reproductive stage in rice?",
+    "category": "diagnostic",
+    "relevant_chunk_ids": [
+      "chunk_002608"
+    ],
+    "relevance_note": "Diagnoses rice yellow stem borer (Scirpophaga incertulas) damage from yellow dead hearts in vegetative shoots and chaffy white ear heads that pull out easily.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q20",
+    "query": "What nutrient deficiency is diagnosed when older leaves turn yellow while younger leaves remain relatively green?",
+    "category": "diagnostic",
+    "relevant_chunk_ids": [
+      "chunk_009535"
+    ],
+    "relevance_note": "Diagnoses nitrogen deficiency by general chlorosis and yellowing initiating on mature lower leaves due to mobile N translocation.",
+    "source_files": [
+      "The TNAU Agriculture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q21",
+    "query": "What disease in wheat completely destroys emergent ears into a black loose powdery mass of spores leaving behind only the bare rachis?",
+    "category": "diagnostic",
+    "relevant_chunk_ids": [
+      "chunk_000942"
+    ],
+    "relevance_note": "Diagnoses loose smut (Ustilago segetum tritici) in wheat where ears are completely converted into a black loose powdery spore mass leaving only the rachis.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q22",
+    "query": "What causes shot-holes in leaves, midrib streaks, and bunchy tops with a dried dark central leaf in sugarcane?",
+    "category": "diagnostic",
+    "relevant_chunk_ids": [
+      "chunk_001148"
+    ],
+    "relevance_note": "Diagnoses sugarcane top-borer (Scirpophaga excerptalis) damage from leaf shot-holes, white/red midrib galleries, and bunchy top.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q23",
+    "query": "What disease is characterized by small light-green lesions on the underside of leaves that enlarge and turn greyish in brassica crops?",
+    "category": "diagnostic",
+    "relevant_chunk_ids": [
+      "chunk_001017"
+    ],
+    "relevance_note": "Diagnoses Downy Mildew (Peronospora brassicae) in mustard/brassica by light green to greyish foliar lesions and shriveling under high humidity.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q24",
+    "query": "What pest problem is identified by observed chewed wood and resin exudation at the base of a cashew trunk?",
+    "category": "diagnostic",
+    "relevant_chunk_ids": [
+      "chunk_011838"
+    ],
+    "relevance_note": "Identifies cashew stem and root borer (Plocaederus ferrugineus) from chewed wood fibers, frass, and gummy resin exudation at the tree collar.",
+    "source_files": [
+      "The TNAU Horticulture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q25",
+    "query": "What are the bed dimensions and structural specifications for preparing a vermicompost production unit?",
+    "category": "procedural_recommendation",
+    "relevant_chunk_ids": [
+      "chunk_001588"
+    ],
+    "relevance_note": "Provides cemented bed engineering dimensions: 6 feet length, 3 feet breadth, 2 feet height on leveled shaded ground.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q26",
+    "query": "What are the duration and temperature precautions required before vermicompost is fully mature and ready?",
+    "category": "procedural_recommendation",
+    "relevant_chunk_ids": [
+      "chunk_001595"
+    ],
+    "relevance_note": "Specifies 60-70 days composting cycle and cautions against fresh dung heat to protect earthworm viability.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q27",
+    "query": "How should coffee nursery seedlings be transplanted to prevent taproot deformation and damping-off disease?",
+    "category": "procedural_recommendation",
+    "relevant_chunk_ids": [
+      "chunk_003625",
+      "chunk_003626"
+    ],
+    "relevance_note": "Step-by-step guidance: 5 cm vertical planting hole, taproot nipping, early morning transplanting, and avoiding excess afternoon watering.",
+    "source_files": [
+      "KAU (Kerala Agricultural University).pdf"
+    ]
+  },
+  {
+    "query_id": "Q28",
+    "query": "What organic manures and coir pith application practices are recommended for maintaining coconut palms?",
+    "category": "procedural_recommendation",
+    "relevant_chunk_ids": [
+      "chunk_011687"
+    ],
+    "relevance_note": "Recommends application of forest leaves, cattle manure, and coir pith in palm basins to build humus and soil moisture retention.",
+    "source_files": [
+      "The TNAU Horticulture PDF.pdf"
+    ]
+  },
+  {
+    "query_id": "Q29",
+    "query": "How should foliar spray solution of zinc sulphate and unslaked lime be prepared per acre to correct deficiency?",
+    "category": "procedural_recommendation",
+    "relevant_chunk_ids": [
+      "chunk_000878"
+    ],
+    "relevance_note": "Prescribes exact recipe: 1 kg zinc sulphate + 0.5 kg unslaked lime in 200 litres of water per acre for foliar spray.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  },
+  {
+    "query_id": "Q30",
+    "query": "What is the recommended procedure and emulsion concentration for disinfecting empty grain storage godowns?",
+    "category": "procedural_recommendation",
+    "relevant_chunk_ids": [
+      "chunk_001818"
+    ],
+    "relevance_note": "Details spraying empty godowns with 0.05% malathion emulsion (100 ml Malathion 50 EC in 10 litres water) prior to grain storage.",
+    "source_files": [
+      "Crop Protection.pdf"
+    ]
+  }
+]
