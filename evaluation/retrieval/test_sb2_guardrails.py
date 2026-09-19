@@ -25,6 +25,7 @@ from components.context.guardrails import (
     is_entity_anchored,
     build_deduplicated_replacement,
     detect_folk_terms_guarded,
+    enrich_query_guarded,
     apply_semantic_bridge_sb1,
     apply_semantic_bridge_sb2,
     CROP_INFLECTIONS,
@@ -344,6 +345,90 @@ class TestWordBoundaryReplacement(unittest.TestCase):
         query_unrelated = "asafed makhia pest"
         res_unrelated = apply_semantic_bridge_sb2(query_unrelated)
         self.assertNotIn("Bemisia tabaci", res_unrelated["enriched"])
+
+
+class TestMissingCropAliasesRegression(unittest.TestCase):
+    """Regression tests for BUG 1: Missing English crop aliases in CROP_INFLECTIONS."""
+
+    def test_multicrop_detection_missing_aliases(self):
+        cases = [
+            ("mung bean and tomato seed rate", ["mung bean", "tomato"]),
+            ("canola and mustard yield", ["canola", "mustard"]),
+            ("black lentil and red lentil spacing", ["black lentil", "red lentil"]),
+            ("red gram and chickpea varieties", ["red gram", "chickpea"]),
+            ("spiked millet and finger millet comparison", ["spiked millet", "finger millet"]),
+            ("canola and tomato spacing", ["canola", "tomato"]),
+        ]
+        for query, expected_crops in cases:
+            with self.subTest(query=query):
+                detected = get_detected_crops(query)
+                self.assertEqual(detected, expected_crops, f"Failed detecting crops in: '{query}'")
+
+    def test_comparative_balance_missing_aliases(self):
+        cases = [
+            "mung bean and tomato seed rate",
+            "canola and mustard yield",
+            "black lentil and red lentil spacing",
+            "red gram and chickpea varieties",
+            "spiked millet and finger millet comparison",
+            "canola and tomato spacing",
+        ]
+        for query in cases:
+            with self.subTest(query=query):
+                res = apply_semantic_bridge_sb2(query)
+                # Symmetrical balance: English crops must NOT be injected with Latin binomials
+                self.assertEqual(res["enriched"], query, f"Multi-crop query was unexpectedly altered: '{res['enriched']}'")
+                self.assertNotIn("Solanum lycopersicum", res["enriched"])
+                self.assertNotIn("Brassica", res["enriched"])
+                self.assertNotIn("Vigna", res["enriched"])
+                self.assertNotIn("Lens culinaris", res["enriched"])
+
+    def test_single_crop_enrichment_missing_aliases(self):
+        cases = [
+            ("mung bean cultivation", "Vigna radiata"),
+            ("canola cultivation", "Brassica napus"),
+            ("black lentil cultivation", "Vigna mungo"),
+            ("red lentil cultivation", "Lens culinaris"),
+        ]
+        for query, expected_sci in cases:
+            with self.subTest(query=query):
+                res = apply_semantic_bridge_sb2(query)
+                self.assertTrue(res["bridged"])
+                self.assertIn(expected_sci, res["enriched"])
+
+
+class TestNestedReplacementRegression(unittest.TestCase):
+    """Regression tests for BUG 2: Nested/duplicate replacement in enrich_query_guarded."""
+
+    def test_black_gram_no_nested_chickpea_corruption(self):
+        query = "black gram cultivation and fertilizer"
+        res = apply_semantic_bridge_sb2(query)
+        self.assertTrue(res["bridged"])
+        self.assertIn("black gram (Vigna mungo)", res["enriched"])
+        self.assertNotIn("Chickpea", res["enriched"])
+        self.assertNotIn("Cicer arietinum", res["enriched"])
+
+    def test_overlapping_and_standalone_tokens(self):
+        query = "black gram and gram cultivation"
+        terms = [
+            {"original_term": "gram", "scientific": "Cicer arietinum", "english": "Chickpea"},
+            {"original_term": "black gram", "scientific": "Vigna mungo", "english": "Black Gram"},
+        ]
+        enriched = enrich_query_guarded(query, terms)
+        self.assertIn("black gram (Vigna mungo)", enriched)
+        self.assertIn("gram (Chickpea, Cicer arietinum)", enriched)
+
+    def test_generated_replacement_not_reprocessed(self):
+        # Even if a replacement string introduces a word that matches another term,
+        # it must never be reprocessed
+        query = "special crop"
+        terms = [
+            {"original_term": "special crop", "scientific": "Custom sci", "english": "urea"},
+            {"original_term": "urea", "scientific": "CO(NH2)2", "english": "Urea"},
+        ]
+        enriched = enrich_query_guarded(query, terms)
+        self.assertIn("special crop (urea, Custom sci)", enriched)
+        self.assertNotIn("CO(NH2)2", enriched)
 
 
 if __name__ == "__main__":

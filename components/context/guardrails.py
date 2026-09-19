@@ -57,7 +57,7 @@ CROP_INFLECTIONS: dict[str, list[str]] = {
     "coconut": ["coconut", "coconuts"],
     "brinjal": ["brinjal", "brinjals", "eggplant", "eggplants"],
     "cowpea": ["cowpea", "cowpeas"],
-    "chickpea": ["chickpea", "chickpeas"],
+    "chickpea": ["chickpea", "chickpeas", "gram", "grams"],
     "pigeon pea": ["pigeon pea", "pigeon peas"],
     "pearl millet": ["pearl millet", "pearl millets"],
     "finger millet": ["finger millet", "finger millets"],
@@ -86,7 +86,18 @@ CROP_INFLECTIONS: dict[str, list[str]] = {
     "linseed": ["linseed", "linseeds"],
     "flax": ["flax", "flaxes"],
     "tea": ["tea", "teas"],
-    "garlic": ["garlic", "garlics"]
+    "garlic": ["garlic", "garlics"],
+
+    # English crop aliases recognized by folk_taxonomy
+    "mung bean": ["mung bean", "mung beans", "mung"],
+    "canola": ["canola", "canolas"],
+    "black lentil": ["black lentil", "black lentils"],
+    "red lentil": ["red lentil", "red lentils"],
+    "red gram": ["red gram", "red grams"],
+    "bengal gram": ["bengal gram", "bengal grams"],
+    "spiked millet": ["spiked millet", "spiked millets"],
+    "great millet": ["great millet", "great millets"],
+    "african millet": ["african millet", "african millets"]
 }
 
 # Inverted surface lookup: surface form -> canonical crop name
@@ -94,6 +105,33 @@ SURFACE_TO_CANONICAL: dict[str, str] = {}
 for canonical, forms in CROP_INFLECTIONS.items():
     for form in forms:
         SURFACE_TO_CANONICAL[form.lower()] = canonical
+
+# Synchronize with English crop names and aliases in folk_taxonomy.py
+def _sync_taxonomy_crop_aliases() -> None:
+    """
+    Ensures all English crop names and aliases defined in folk_taxonomy.py
+    are recognized by CROP_INFLECTIONS and SURFACE_TO_CANONICAL.
+    """
+    for folk_term, data in FOLK_TAXONOMY.items():
+        if data.get("category") != "crop":
+            continue
+        eng_parts = [p.strip().lower() for p in data.get("english", "").split("/")]
+        for p in eng_parts:
+            if p and p not in SURFACE_TO_CANONICAL:
+                forms = [p, p + "s"]
+                CROP_INFLECTIONS.setdefault(p, forms)
+                for f in forms:
+                    SURFACE_TO_CANONICAL[f.lower()] = p
+
+        for alias in data.get("aliases", []):
+            a = alias.strip().lower()
+            if (" " in a or any(root in a for root in ["gram", "millet", "lentil", "bean", "canola"])) and a not in SURFACE_TO_CANONICAL:
+                forms = [a, a + "s"]
+                CROP_INFLECTIONS.setdefault(a, forms)
+                for f in forms:
+                    SURFACE_TO_CANONICAL[f.lower()] = a
+
+_sync_taxonomy_crop_aliases()
 
 # Complete set of all recognized crop surface forms
 ALL_CROP_SURFACE_FORMS = set(SURFACE_TO_CANONICAL.keys())
@@ -342,6 +380,9 @@ def detect_folk_terms_guarded(query: str, enable_multi_crop_balance: bool = Fals
       binomial injection when multiple crops co-occur in an English list.
     """
     tokens = tokenize_query(query)
+    # Sort tokens longest-first so multi-word terms (e.g., 'mung bean') are evaluated
+    # before constituent unigrams (e.g., 'mung'), claiming seen_scientific first.
+    tokens = sorted(tokens, key=lambda x: len(x), reverse=True)
     anchored, anchor_list = is_entity_anchored(query)
     detected_crops = get_detected_crops(query)
     is_multi_crop = len(detected_crops) >= 2
@@ -378,8 +419,14 @@ def detect_folk_terms_guarded(query: str, enable_multi_crop_balance: bool = Fals
 
             # Multi-crop check on exact match category
             if enable_multi_crop_balance and is_multi_crop and exact.get("category") == "crop":
-                # If the matched token is already an English common crop name, suppress
-                if token_clean in CROP_ANCHORS:
+                # If the matched token or its canonical/aliases is already an English common crop name, suppress
+                folk_canonical = exact.get("folk_term", "").lower()
+                matched_alias = exact.get("matched_alias", "").lower()
+                aliases = [a.lower() for a in exact.get("aliases", [])]
+                if (token_clean in CROP_ANCHORS
+                        or folk_canonical in CROP_ANCHORS
+                        or matched_alias in CROP_ANCHORS
+                        or any(a in CROP_ANCHORS for a in aliases)):
                     continue
 
             if sci not in seen_scientific:
@@ -438,9 +485,19 @@ def detect_folk_terms_guarded(query: str, enable_multi_crop_balance: bool = Fals
 def enrich_query_guarded(query: str, detected_terms: list[dict]) -> str:
     """
     Applies Guardrail 1: Synonym De-duplication and clean replacement.
+    Applies replacements against the original query in a single pass (longest match first)
+    to prevent nested/duplicate corruption of generated replacement text.
     """
-    enriched = query
-    detected_terms_sorted = sorted(detected_terms, key=lambda x: len(x["original_term"]), reverse=True)
+    if not query or not detected_terms:
+        return query
+
+    detected_terms_sorted = sorted(
+        detected_terms,
+        key=lambda x: len(x["original_term"]),
+        reverse=True
+    )
+
+    claimed_spans: list[tuple[int, int, str]] = []
 
     for t in detected_terms_sorted:
         folk = t["original_term"]
@@ -448,11 +505,31 @@ def enrich_query_guarded(query: str, detected_terms: list[dict]) -> str:
         sci = t.get("scientific", "")
 
         replacement = build_deduplicated_replacement(folk, eng, sci)
-        if replacement:
-            pattern = rf"\b{re.escape(folk)}\b"
-            enriched = re.sub(pattern, replacement, enriched, flags=re.IGNORECASE)
+        if not replacement:
+            continue
 
-    return enriched
+        pattern = rf"\b{re.escape(folk)}\b"
+        for match in re.finditer(pattern, query, flags=re.IGNORECASE):
+            start, end = match.span()
+            overlaps = any(
+                not (end <= c_start or start >= c_end)
+                for c_start, c_end, _ in claimed_spans
+            )
+            if not overlaps:
+                claimed_spans.append((start, end, replacement))
+
+    if not claimed_spans:
+        return query
+
+    claimed_spans.sort(key=lambda x: x[0])
+    pieces = []
+    last_idx = 0
+    for start, end, rep in claimed_spans:
+        pieces.append(query[last_idx:start])
+        pieces.append(rep)
+        last_idx = end
+    pieces.append(query[last_idx:])
+    return "".join(pieces)
 
 
 def apply_semantic_bridge_sb1(query: str) -> dict:
