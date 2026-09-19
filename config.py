@@ -41,6 +41,9 @@ MIN_CHUNK_SIZE  = 50     # Ignore tiny chunks below this
 # ── Semantic Bridge Settings ───────────────
 ENABLE_SB2_GUARDRAILS = False  # Set True to enable guarded SB2 alignment
 
+# ── Conformal Trust Scoring Settings ────────
+ENABLE_CONFORMAL_TRUST = False  # Set True to enable slow-path conformal trust scoring
+
 # ── Embedding model ────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 

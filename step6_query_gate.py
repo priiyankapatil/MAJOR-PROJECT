@@ -58,6 +58,7 @@ from regulatory_updater import run_startup_update
 
 run_startup_update(borderline_pesticides=None)
 
+import config
 from config import (
     GROQ_API_KEY,
     GROQ_GATE_MODEL,
@@ -899,6 +900,7 @@ def query_gate(query, embedder, collection,
         )
 
     answer = answer_data.get('answer', '')
+    core_generated_answer = answer
 
     # ── Step 5B: Sentence-level provenance mapping ──
     if is_fast_path:
@@ -979,6 +981,41 @@ def query_gate(query, embedder, collection,
     else:
         print("\n⏭️  Step 5C: Compliance scan skipped (no answer)")
 
+    # ── Step 5D: Conformal Trust Scoring (Optional / Guarded) ──
+    trust_score = None
+    trust_verdict = None
+    trust_data = None
+
+    ENABLE_CONFORMAL_TRUST = getattr(config, "ENABLE_CONFORMAL_TRUST", False)
+
+    if is_fast_path:
+        print("\n⏭️  Step 5D: Skipped (FAST path)")
+    elif not ENABLE_CONFORMAL_TRUST:
+        print("\n⏭️  Step 5D: Skipped (ENABLE_CONFORMAL_TRUST=False)")
+    elif core_generated_answer and core_generated_answer.strip() and "knowledge base doesn't have" not in core_generated_answer:
+        print("\n🛡️  Step 5D: Running Conformal Trust Scoring (Evidence Alignment)...")
+        try:
+            from conformal_trust_scorer import run_conformal_trust_scorer
+            trust_result = run_conformal_trust_scorer(
+                query=query,
+                answer=core_generated_answer,
+                chunks=chunks,
+                embedder=embedder,
+                client=groq_client
+            )
+            if trust_result and isinstance(trust_result, dict) and "aggregate" in trust_result:
+                agg = trust_result["aggregate"]
+                trust_score = agg.get("overall_trust_score")
+                trust_verdict = agg.get("verdict")
+                trust_data = trust_result
+        except Exception as e:
+            print(f"   ⚠️  Conformal trust scoring failed: {e}")
+            trust_score = None
+            trust_verdict = None
+            trust_data = None
+    else:
+        print("\n⏭️  Step 5D: Skipped (no answer generated)")
+
     # ── Step 6: Collect routing feedback (optional, interactive) ──
     print("\n📝 Step 6: Recording routing feedback...")
     try:
@@ -1016,6 +1053,8 @@ def query_gate(query, embedder, collection,
     print(f"📚 SOURCES     :")
     for src in answer_data["sources"]:
         print(f"   • {src}")
+    if trust_score is not None:
+        print(f"🛡️  TRUST SCORE : {trust_score:.4f} ({trust_verdict})")
     print(f"\n✅ ANSWER:\n")
     print(answer_data["answer"])
     print(f"{'='*60}")
@@ -1032,6 +1071,9 @@ def query_gate(query, embedder, collection,
         "routing_reason"           : routing["reason"],
         "weather_enrichment_applied": weather_enrichment_applied,
         "weather_data"             : weather_data,
+        "trust_score"              : trust_score,
+        "trust_verdict"            : trust_verdict,
+        "trust_data"               : trust_data,
     }
 
 

@@ -33,6 +33,17 @@ def decompose_answer_to_claims(answer: str, client) -> list:
     Uses LLM to decompose a generated answer into
     atomic verifiable sub-claims.
     """
+    if not answer or not answer.strip():
+        return []
+
+    model_to_use = LLM_MODEL
+    try:
+        from config import GROQ_GATE_MODEL
+        if GROQ_GATE_MODEL:
+            model_to_use = GROQ_GATE_MODEL
+    except Exception:
+        pass
+
     prompt = f"""You are a fact decomposition assistant.
     
 Break the following agricultural advisory answer into individual atomic claims.
@@ -51,7 +62,7 @@ Return ONLY a JSON array of strings, no markdown, no backticks:
 ["claim 1", "claim 2", "claim 3"]"""
 
     response = client.chat.completions.create(
-        model=LLM_MODEL,
+        model=model_to_use,
         messages=[
             {"role": "system", "content": "You decompose text into verifiable atomic claims. Return ONLY a valid JSON array of strings: [\"claim 1\", \"claim 2\"]. Do not wrap in markdown or backticks."},
             {"role": "user", "content": prompt}
@@ -93,14 +104,26 @@ Return ONLY a JSON array of strings, no markdown, no backticks:
 
     # Strategy 2: Extract all quoted strings
     quoted = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', raw)
-    valid_quoted = [q.strip().replace('\\"', '"') for q in quoted if len(q.strip()) > 8 and not q.strip().startswith('[') and not q.strip().endswith(']')]
+    valid_quoted = [q.strip().replace('\\"', '"') for q in quoted if len(q.strip()) > 10 and not q.strip().startswith('[') and not q.strip().endswith(']')]
     if len(valid_quoted) >= 2:
         return valid_quoted[:10]
 
-    # Strategy 3: Split by newline
+    # Strategy 3: Sentence boundary splitting
+    clean_text = re.sub(r'[#*`_]', '', raw)
+    raw_sentences = re.split(r'(?<=[.!?])\s+', clean_text)
+    valid_sentences = []
+    for s in raw_sentences:
+        s_clean = re.sub(r'^[-*0-9.)\s"\']+', '', s).strip().strip('"').strip("'")
+        if len(s_clean) > 12 and not s_clean.startswith('|') and not s_clean.startswith('---'):
+            valid_sentences.append(s_clean)
+    if len(valid_sentences) >= 2:
+        return valid_sentences[:10]
+
+    # Strategy 4: Line/bullet-based fallback
     lines = [re.sub(r'^[-*0-9.)\s"\']+', '', l).strip().strip('"').strip("'").strip(',')
              for l in raw.split('\n') if l.strip()]
-    return [l for l in lines if len(l) > 8][:10]
+    valid_lines = [l for l in lines if len(l) > 12 and not l.startswith('|') and not l.startswith('---')]
+    return valid_lines[:10]
 
 
 def compute_nonconformity_scores(claims: list, 
@@ -115,37 +138,48 @@ def compute_nonconformity_scores(claims: list,
     if not claims or not chunks:
         return np.array([])
     
-    # Embed all claims
-    claim_embeddings = embedder.encode(claims, 
-                                        convert_to_numpy=True,
-                                        show_progress_bar=False)
-    
-    # Embed all chunks
-    chunk_texts = [c.get("text", c) if isinstance(c, dict) 
-                   else str(c) for c in chunks]
-    chunk_embeddings = embedder.encode(chunk_texts,
-                                        convert_to_numpy=True,
-                                        show_progress_bar=False)
-    
-    # For each claim: find max similarity across all chunks
-    similarity_matrix = cosine_similarity(claim_embeddings, 
-                                           chunk_embeddings)
-    max_similarities  = similarity_matrix.max(axis=1)
-    
-    # Nonconformity score = 1 - max_similarity
-    nonconformity_scores = 1.0 - max_similarities
-    
-    return nonconformity_scores
+    try:
+        # Embed all claims
+        claim_embeddings = embedder.encode(claims, 
+                                            convert_to_numpy=True,
+                                            show_progress_bar=False)
+        
+        # Embed all chunks
+        chunk_texts = [c.get("text", c) if isinstance(c, dict) 
+                       else str(c) for c in chunks]
+        chunk_embeddings = embedder.encode(chunk_texts,
+                                            convert_to_numpy=True,
+                                            show_progress_bar=False)
+        
+        if len(claim_embeddings.shape) != 2 or len(chunk_embeddings.shape) != 2:
+            return np.array([])
+            
+        if claim_embeddings.shape[1] != chunk_embeddings.shape[1]:
+            print(f"   ⚠️  Embedding dimension mismatch: claims {claim_embeddings.shape[1]} vs chunks {chunk_embeddings.shape[1]}")
+            return np.array([])
+
+        # For each claim: find max similarity across all chunks
+        similarity_matrix = cosine_similarity(claim_embeddings, 
+                                               chunk_embeddings)
+        max_similarities  = similarity_matrix.max(axis=1)
+        
+        # Nonconformity score = 1 - max_similarity
+        nonconformity_scores = 1.0 - max_similarities
+        
+        return nonconformity_scores
+    except Exception as e:
+        print(f"   ⚠️  Nonconformity calculation error: {e}")
+        return np.array([])
 
 
 def compute_conformal_threshold(calibration_scores: np.ndarray,
                                  alpha: float = ALPHA) -> float:
     """
-    Computes the conformal prediction threshold q_hat.
+    Computes the nonconformity threshold q_hat for semantic evidence alignment.
     
-    This is the (1-alpha) quantile of the calibration scores.
-    Any new claim with nonconformity score <= q_hat is 
-    statistically guaranteed to be supported at (1-alpha) confidence.
+    This is the (1-alpha) quantile of the nonconformity scores.
+    Under empirical self-calibration, claims with nonconformity score <= q_hat
+    are evaluated as conforming with retrieved context relative to the threshold.
     
     Formula: q_hat = ceil((n+1)(1-alpha)) / n quantile
     """
@@ -168,7 +202,7 @@ def apply_conformal_prediction(nonconformity_scores: np.ndarray,
     For each claim: if nonconformity_score <= q_hat → SUPPORTED
                     if nonconformity_score >  q_hat → UNSUPPORTED
     
-    This gives a (1-alpha) statistical guarantee on supported claims.
+    Applies empirical nonconformity thresholding to assess claim support.
     """
     results = []
     for i, (claim, score) in enumerate(
@@ -203,42 +237,44 @@ def compute_aggregate_trust(claim_results: list,
                              alpha: float = ALPHA) -> dict:
     """
     Aggregates per-claim scores into an overall answer trust score
-    with formal statistical guarantee.
+    reflecting semantic evidence alignment.
     """
     if not claim_results:
         return {
-            "overall_trust_score": 0.0,
-            "confidence_level":    1 - alpha,
-            "statistical_guarantee": "No claims to evaluate",
-            "verdict": "UNKNOWN"
+            "overall_trust_score":   0.0,
+            "support_ratio":         0.0,
+            "supported_claims":      0,
+            "total_claims":          0,
+            "confidence_level":      1 - alpha,
+            "confidence_pct":        int((1 - alpha) * 100),
+            "statistical_guarantee": "No evidence or claims to evaluate",
+            "verdict":               "UNKNOWN"
         }
     
     trust_scores    = [r["trust_score"] for r in claim_results]
     supported_count = sum(1 for r in claim_results if r["supported"])
     total_count     = len(claim_results)
     
-    # Overall trust = weighted average
-    # (supported claims weighted higher)
+    # Overall trust = mean of individual trust scores
     overall_trust = float(np.mean(trust_scores))
     support_ratio = supported_count / total_count
     
-    # Statistical guarantee statement
+    # Evidence alignment assessment statement
     confidence_pct = int((1 - alpha) * 100)
     guarantee = (
-        f"With {confidence_pct}% statistical confidence, "
-        f"{supported_count}/{total_count} claims are "
-        f"supported by retrieved evidence"
+        f"Semantic evidence alignment: "
+        f"{supported_count}/{total_count} claims supported by retrieved evidence"
     )
     
-    # Verdict
+    # Verdict based on empirical alignment thresholds
     if overall_trust >= 0.80 and support_ratio >= 0.80:
-        verdict = "HIGHLY TRUSTWORTHY ✅"
+        verdict = "HIGH EVIDENCE ALIGNMENT ✅"
     elif overall_trust >= 0.65 and support_ratio >= 0.60:
-        verdict = "MODERATELY TRUSTWORTHY ⚠️"
+        verdict = "MODERATE EVIDENCE ALIGNMENT ⚠️"
     elif overall_trust >= 0.45:
-        verdict = "LOW TRUSTWORTHINESS 🔶"
+        verdict = "LOW EVIDENCE ALIGNMENT 🔶"
     else:
-        verdict = "UNTRUSTWORTHY ❌"
+        verdict = "UNSUPPORTED ❌"
     
     return {
         "overall_trust_score":    round(overall_trust, 4),
@@ -260,14 +296,14 @@ def print_trust_report(claim_results: list,
     print("="*65)
     print(f"  Conformal threshold (q̂)  : {q_hat:.4f}")
     print(f"  Significance level (α)   : {ALPHA}  "
-          f"→ {aggregate['confidence_pct']}% guarantee")
+          f"→ {aggregate['confidence_pct']}% nominal alignment level")
     print(f"  Overall trust score      : "
           f"{aggregate['overall_trust_score']:.4f}")
     print(f"  Support ratio            : "
           f"{aggregate['supported_claims']}/"
           f"{aggregate['total_claims']} claims")
     print(f"  Verdict                  : {aggregate['verdict']}")
-    print(f"\n  📊 Statistical guarantee:")
+    print(f"\n  📊 Evidence Alignment Assessment:")
     print(f"  {aggregate['statistical_guarantee']}")
     print("="*65)
     print("\n  Per-claim breakdown:\n")
@@ -285,48 +321,94 @@ def print_trust_report(claim_results: list,
 
 
 def save_trust_log(query: str, answer: str,
-                   aggregate: dict, claim_results: list):
-    log = []
-    if os.path.exists(TRUST_LOG_PATH):
-        try:
-            with open(TRUST_LOG_PATH, "r") as f:
-                log = json.load(f)
-        except:
-            log = []
-    
-    log.append({
-        "timestamp":     datetime.now().isoformat(),
-        "query":         query,
-        "answer_snippet": answer[:200],
-        "overall_trust": aggregate["overall_trust_score"],
-        "verdict":       aggregate["verdict"],
-        "support_ratio": aggregate["support_ratio"],
-        "claims_count":  aggregate["total_claims"],
-        "guarantee":     aggregate["statistical_guarantee"]
-    })
-    
-    with open(TRUST_LOG_PATH, "w") as f:
-        json.dump(log, f, indent=2)
-    
-    print(f"  💾 Trust log saved → {TRUST_LOG_PATH}")
+                   aggregate: dict, claim_results: list,
+                   log_path: str = None) -> None:
+    """
+    Persists telemetry log of trust scoring run.
+    Configurable via log_path or environment variable CONFORMAL_TRUST_LOG_PATH
+    to allow test isolation without writing to project root artifacts.
+    Catches all file IO exceptions gracefully so logging failure never blocks answers.
+    """
+    target_path = log_path or os.getenv("CONFORMAL_TRUST_LOG_PATH") or TRUST_LOG_PATH
+    try:
+        log = []
+        if os.path.exists(target_path):
+            try:
+                with open(target_path, "r", encoding="utf-8") as f:
+                    log = json.load(f)
+            except Exception:
+                log = []
+        
+        log.append({
+            "timestamp":     datetime.now().isoformat(),
+            "query":         query,
+            "answer_snippet": answer[:200] if answer else "",
+            "overall_trust": aggregate.get("overall_trust_score", 0.0),
+            "verdict":       aggregate.get("verdict", "UNKNOWN"),
+            "support_ratio": aggregate.get("support_ratio", 0.0),
+            "claims_count":  aggregate.get("total_claims", 0),
+            "guarantee":     aggregate.get("statistical_guarantee", "")
+        })
+        
+        parent_dir = os.path.dirname(target_path)
+        if parent_dir and not os.path.exists(parent_dir):
+            os.makedirs(parent_dir, exist_ok=True)
+            
+        with open(target_path, "w", encoding="utf-8") as f:
+            json.dump(log, f, indent=2)
+        
+        print(f"  💾 Trust log saved → {target_path}")
+    except Exception as e:
+        print(f"  ⚠️  Failed to save trust log to {target_path}: {e}")
 
 
 def run_conformal_trust_scorer(query:  str,
                                 answer: str,
-                                chunks: list) -> dict:
+                                chunks: list,
+                                embedder = None,
+                                client = None,
+                                log_path = None) -> dict:
     """
     Master function. Call this with:
-      - query  : the original farmer question
-      - answer : the LLM-generated answer
-      - chunks : list of retrieved text chunks (dicts or strings)
+      - query   : the original farmer question
+      - answer  : the LLM-generated answer
+      - chunks  : list of retrieved text chunks (dicts or strings)
+      - embedder: optional existing SentenceTransformer instance
+      - client  : optional existing Groq client instance
+      - log_path: optional path for telemetry log isolation
     
     Returns the full trust result dict.
     """
     print("\n🔬 CONFORMAL PREDICTION TRUST SCORER")
     print("─"*45)
     
-    client  = Groq(api_key=GROQ_API_KEY)
-    embedder = load_embedder()
+    if not answer or not answer.strip():
+        print("   ⚠️  Empty answer provided — cannot score")
+        fallback_aggregate = {
+            "overall_trust_score": 0.0,
+            "verdict": "UNVERIFIED ⚠️",
+            "support_ratio": 0.0,
+            "total_claims": 0,
+            "supported_claims": 0,
+            "unsupported_claims": 0,
+            "confidence_level": 1 - ALPHA,
+            "confidence_pct": int((1 - ALPHA) * 100),
+            "statistical_guarantee": "Empty answer provided",
+        }
+        return {
+            "query": query,
+            "claims": [],
+            "claim_results": [],
+            "aggregate": fallback_aggregate,
+            "q_hat": 0.0,
+            "alpha": ALPHA,
+            "error": "Empty answer"
+        }
+
+    if client is None:
+        client  = Groq(api_key=GROQ_API_KEY)
+    if embedder is None:
+        embedder = load_embedder()
     
     # ── Step 1: Decompose answer into atomic claims ──
     print("\n📋 Step 1: Decomposing answer into sub-claims...")
@@ -340,10 +422,12 @@ def run_conformal_trust_scorer(query:  str,
         fallback_aggregate = {
             "overall_trust_score": 0.0,
             "verdict": "UNVERIFIED ⚠️",
-            "support_ratio": "0/0 claims",
+            "support_ratio": 0.0,
             "total_claims": 0,
             "supported_claims": 0,
             "unsupported_claims": 0,
+            "confidence_level": 1 - ALPHA,
+            "confidence_pct": int((1 - ALPHA) * 100),
             "statistical_guarantee": "No claims extracted for verification",
         }
         return {
@@ -359,6 +443,29 @@ def run_conformal_trust_scorer(query:  str,
     # ── Step 2: Compute nonconformity scores ──
     print("\n📐 Step 2: Computing nonconformity scores...")
     nc_scores = compute_nonconformity_scores(claims, chunks, embedder)
+    if nc_scores is None or len(nc_scores) == 0:
+        print("   ⚠️  No evidence chunks provided — cannot compute nonconformity")
+        fallback_aggregate = {
+            "overall_trust_score": 0.0,
+            "verdict": "UNVERIFIED ⚠️",
+            "support_ratio": 0.0,
+            "total_claims": len(claims),
+            "supported_claims": 0,
+            "unsupported_claims": len(claims),
+            "confidence_level": 1 - ALPHA,
+            "confidence_pct": int((1 - ALPHA) * 100),
+            "statistical_guarantee": "No evidence chunks provided for verification",
+        }
+        return {
+            "query": query,
+            "claims": claims,
+            "claim_results": [],
+            "aggregate": fallback_aggregate,
+            "q_hat": 0.0,
+            "alpha": ALPHA,
+            "error": "No evidence chunks provided"
+        }
+
     print(f"   Scores: {[round(s,4) for s in nc_scores]}")
     
     # ── Step 3: Compute conformal threshold (q̂) ──
@@ -367,7 +474,7 @@ def run_conformal_trust_scorer(query:  str,
     # (self-calibration — valid for single-answer evaluation)
     q_hat = compute_conformal_threshold(nc_scores, alpha=ALPHA)
     print(f"   q̂ = {q_hat:.4f}  "
-          f"(α={ALPHA} → {int((1-ALPHA)*100)}% guarantee)")
+          f"(α={ALPHA} → heuristic evidence alignment threshold)")
     
     # ── Step 4: Apply conformal prediction ──
     print("\n✅ Step 4: Applying conformal prediction labels...")
@@ -381,7 +488,7 @@ def run_conformal_trust_scorer(query:  str,
     print_trust_report(claim_results, aggregate, q_hat)
     
     # ── Step 7: Save log ──
-    save_trust_log(query, answer, aggregate, claim_results)
+    save_trust_log(query, answer, aggregate, claim_results, log_path=log_path)
     
     return {
         "query":         query,
