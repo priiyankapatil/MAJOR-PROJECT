@@ -38,6 +38,9 @@ NSP_THRESHOLD   = 0.85   # BERT NSP boundary threshold
 MAX_CHUNK_SIZE  = 500    # Max characters per chunk
 MIN_CHUNK_SIZE  = 50     # Ignore tiny chunks below this
 
+# ── Semantic Bridge Settings ───────────────
+ENABLE_SB2_GUARDRAILS = False  # Set True to enable guarded SB2 alignment
+
 # ── Embedding model ────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 

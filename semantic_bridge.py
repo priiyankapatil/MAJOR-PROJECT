@@ -1,3 +1,4 @@
+import config
 from dialectal_alignment import align_query
 from datetime import datetime
 import json
@@ -12,7 +13,11 @@ def apply_semantic_bridge(query: str) -> dict:
     """
     print("\n🌐 Step 0: Rural-to-Scientific Semantic Bridge...")
 
-    result = align_query(query)
+    if getattr(config, "ENABLE_SB2_GUARDRAILS", False):
+        from components.context.guardrails import apply_semantic_bridge_sb2
+        result = apply_semantic_bridge_sb2(query)
+    else:
+        result = align_query(query)
 
     if not result.get("bridged"):
         print("   ℹ️  No folk/dialect terms detected — query passed through unchanged")
