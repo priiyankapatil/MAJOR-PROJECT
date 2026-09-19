@@ -449,7 +449,7 @@ def enrich_query_guarded(query: str, detected_terms: list[dict]) -> str:
 
         replacement = build_deduplicated_replacement(folk, eng, sci)
         if replacement:
-            pattern = re.escape(folk)
+            pattern = rf"\b{re.escape(folk)}\b"
             enriched = re.sub(pattern, replacement, enriched, flags=re.IGNORECASE)
 
     return enriched

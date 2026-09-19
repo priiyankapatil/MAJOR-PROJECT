@@ -280,5 +280,71 @@ class TestSB1GuardrailsPreservation(unittest.TestCase):
         self.assertNotIn("Gobar", res["enriched"])
 
 
+class TestWordBoundaryReplacement(unittest.TestCase):
+    """Verifies that word boundaries prevent substring corruption of unrelated host words."""
+
+    def test_host_words_remain_intact(self):
+        cases = [
+            ("corn yield in corner plot", "corner", "corn (Maize / Corn, Zea mays)", "corner plot"),
+            ("urea application through agricultural bureau", "bureau", "urea (Urea (CO(NH2)2) — 46% N)", "agricultural bureau"),
+            ("chana crop in archana agricultural farm", "archana", "chana (Chickpea, Cicer arietinum)", "archana agricultural farm"),
+            ("dhan production under vidhan sabha scheme", "vidhan", "dhan (Rice / Paddy, Oryza sativa)", "vidhan sabha scheme"),
+        ]
+        for query, host_word, expected_enrichment, expected_phrase in cases:
+            with self.subTest(query=query):
+                res = apply_semantic_bridge_sb2(query)
+                self.assertTrue(res["bridged"])
+                self.assertIn(expected_enrichment, res["enriched"])
+                self.assertIn(expected_phrase, res["enriched"])
+                self.assertIn(host_word, res["enriched"])
+
+    def test_exact_standalone_matches(self):
+        cases = [
+            ("corn", "corn (Maize / Corn, Zea mays)"),
+            ("urea", "urea (Urea (CO(NH2)2) — 46% N)"),
+            ("chana", "chana (Chickpea, Cicer arietinum)"),
+            ("dhan", "dhan (Rice / Paddy, Oryza sativa)"),
+        ]
+        for query, expected_enriched in cases:
+            with self.subTest(query=query):
+                res = apply_semantic_bridge_sb2(query)
+                self.assertTrue(res["bridged"])
+                self.assertEqual(res["enriched"], expected_enriched)
+
+    def test_case_insensitive_matching(self):
+        cases = [
+            ("CORN yield in CORNER plot", "corn (Maize / Corn, Zea mays) yield in CORNER plot"),
+            ("UREA in BUREAU", "urea (Urea (CO(NH2)2) — 46% N) in BUREAU"),
+            ("CHANA in ARCHANA", "chana (Chickpea, Cicer arietinum) in ARCHANA"),
+            ("DHAN in VIDHAN", "dhan (Rice / Paddy, Oryza sativa) in VIDHAN"),
+        ]
+        for query, expected_enriched in cases:
+            with self.subTest(query=query):
+                res = apply_semantic_bridge_sb2(query)
+                self.assertTrue(res["bridged"])
+                self.assertEqual(res["enriched"], expected_enriched)
+
+    def test_multiple_occurrences(self):
+        query = "corn and corn seeds in corner plot with corn stalks"
+        res = apply_semantic_bridge_sb2(query)
+        self.assertTrue(res["bridged"])
+        self.assertIn("corner plot", res["enriched"])
+        count_corn_enriched = res["enriched"].count("corn (Maize / Corn, Zea mays)")
+        self.assertEqual(count_corn_enriched, 3)
+
+    def test_multi_word_terms(self):
+        # "safed makhi" (Whitefly)
+        query = "safed makhi control in corner plot"
+        res = apply_semantic_bridge_sb2(query)
+        self.assertTrue(res["bridged"])
+        self.assertIn("safed makhi (Whitefly, Bemisia tabaci)", res["enriched"])
+        self.assertIn("corner plot", res["enriched"])
+
+        # Word boundary prevents partial multi-word substring match
+        query_unrelated = "asafed makhia pest"
+        res_unrelated = apply_semantic_bridge_sb2(query_unrelated)
+        self.assertNotIn("Bemisia tabaci", res_unrelated["enriched"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
