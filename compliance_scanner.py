@@ -331,3 +331,35 @@ def build_compliance_warning_box(scan_result: dict) -> str:
     ])
 
     return "\n".join(lines)
+
+
+def scan_recommendation_text(text: str) -> dict:
+    """Public alias for scan_answer_for_compliance() with a normalised return shape.
+
+    Adds ``found_banned`` and ``found`` keys (lists of lowercase chemical names)
+    so callers don't need to introspect ``pesticides_found`` vs ``scored_pesticides``.
+
+    Args:
+        text: Free-form answer or recommendation text to scan.
+
+    Returns:
+        dict with at minimum:
+            any_banned (bool)    – True if any India-banned chemical is detected
+            any_eu_banned (bool) – True if any EU-banned chemical is detected
+            found_banned (list)  – lowercase names of India-banned chemicals found
+            found (list)         – all pesticide names detected in text
+            overall_compliance (float)
+            warning_needed (bool)
+    """
+    result = scan_answer_for_compliance(text)
+
+    # Derive found_banned: check each detected pesticide against PESTICIDE_DB india_status
+    all_found    = [p.lower() for p in (result.get("pesticides_found") or [])]
+    found_banned = [
+        p for p in all_found
+        if PESTICIDE_DB.get(p, {}).get("india_status", "").upper() == "BANNED"
+    ]
+
+    result["found_banned"] = found_banned
+    result["found"]        = all_found
+    return result
