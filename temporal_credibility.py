@@ -1,5 +1,5 @@
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 # ── Dynamic sync from config.SOURCE_METADATA ──────────────────────────────────
@@ -120,7 +120,7 @@ def score_all_chunks(retrieved_chunks, query_type, current_year=None):
     `temporal_score`, `freshness_label`, `age_years` attached.
     """
     if current_year is None:
-        current_year = datetime.utcnow().year
+        current_year = datetime.now(timezone.utc).year
 
     scored = []
     for c in retrieved_chunks:
