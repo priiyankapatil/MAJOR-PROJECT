@@ -169,6 +169,25 @@ def filter_stale_chunks(scored_chunks, min_score=0.55):
     return kept
 
 
+def score_chunk_temporal(chunk: dict, query_type: str = "RECOMMENDATION", current_year: int = None) -> dict:
+    """Convenience wrapper: score a single chunk dict and return it annotated.
+
+    Equivalent to ``score_all_chunks([chunk], ...)[0]`` but returns the dict
+    directly instead of a one-element list.
+
+    Args:
+        chunk:        A chunk dict with at least a ``source`` or ``source_file`` key.
+        query_type:   One of FACTUAL / RECOMMENDATION / DIAGNOSTIC / PROCEDURAL.
+        current_year: Override the reference year (defaults to UTC today).
+
+    Returns:
+        The same chunk dict with ``temporal_score``, ``freshness_label``,
+        ``age_years``, and ``temporal_source_match`` attached.
+    """
+    results = score_all_chunks([chunk], query_type=query_type, current_year=current_year)
+    return results[0]
+
+
 if __name__ == "__main__":
     # Quick manual test — covers institutional + crop-specific PDF filenames
     fake = [
