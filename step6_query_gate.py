@@ -1362,9 +1362,7 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
     # caller flagged an offline regulatory status.
     if is_offline_reg and (
         offline_flag_triggered
-        or any(
-            re.search(r"(?i)\bchemical treatment withheld\b|\bchemical withheld\b|\bdosage withheld\b", sanitized_text)
-        )
+        or bool(re.search(r"(?i)\bchemical treatment withheld\b|\bchemical withheld\b|\bdosage withheld\b", sanitized_text))
     ):
         disclaimer_block = (
             "\n\n---\n"
