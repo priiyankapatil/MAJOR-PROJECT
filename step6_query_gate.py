@@ -26,17 +26,50 @@ import chromadb
 from groq import Groq
 # Lazy load SentenceTransformer to avoid initialization hang
 
-# Ensure UTF-8 output encoding on Windows consoles
+# Prevent UnicodeEncodeError on Windows consoles with restricted codepages
 if hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stdout.reconfigure(errors="replace")
     except Exception:
         pass
 if hasattr(sys.stderr, "reconfigure"):
     try:
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(errors="replace")
     except Exception:
         pass
+
+
+def _safe_print(*args, **kwargs):
+    """
+    Encoding-safe print wrapper for console output.
+    Prevents UnicodeEncodeError on Windows consoles or redirected streams (e.g. cp1252, cp437, ascii)
+    without globally mutating the user's console or environment.
+    """
+    file = kwargs.get("file") or sys.stdout
+    sep = kwargs.get("sep", " ")
+    end = kwargs.get("end", "\n")
+    flush = kwargs.get("flush", False)
+    text = sep.join(str(a) for a in args)
+    try:
+        file.write(text + end)
+        if flush:
+            file.flush()
+    except UnicodeEncodeError:
+        encoding = getattr(file, "encoding", None) or "ascii"
+        safe_text = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+        file.write(safe_text + end)
+        if flush:
+            file.flush()
+    except Exception:
+        try:
+            safe_text = text.encode("ascii", errors="replace").decode("ascii")
+            file.write(safe_text + end)
+            if flush:
+                file.flush()
+        except Exception:
+            pass
+
+print = _safe_print
 
 
 def _load_environment_variables() -> None:
@@ -1281,7 +1314,15 @@ def slow_path_answer(query, chunks, query_type):
             tag = f"[Source: {src} | STATUS: OUTDATED - HISTORICAL ARCHIVE ONLY]"
         else:
             tag = f"[Source: {src} | Freshness: {freshness}]"
-        context_parts.append(f"{tag}\n{chunk.get('text', '')}")
+        chunk_text = chunk.get('text', '')
+        if getattr(config, "ENABLE_CONTEXT_COMPRESSION", False):
+            try:
+                from components.context.compression import distill_chunk_text
+                chunk_text, _, _ = distill_chunk_text(query, chunk_text)
+            except Exception:
+                chunk_text = chunk.get('text', '')
+
+        context_parts.append(f"{tag}\n{chunk_text}")
         if src and src not in sources:
             sources.append(src)
 
@@ -1504,7 +1545,8 @@ def retrieve_chunks(query, embedder, collection,
 # ─────────────────────────────────────────────
 
 def query_gate(query, embedder=None, collection=None,
-               bm25=None, corpus=None):
+               bm25=None, corpus=None,
+               enable_interactive_feedback=False):
     """
     Complete Query Gate pipeline.
 
@@ -2019,9 +2061,14 @@ def query_gate(query, embedder=None, collection=None,
         print("   ℹ️  Skipping routing feedback adaptation (answer was empty, failed, or insufficient context)")
     else:
         try:
+            should_prompt = (
+                enable_interactive_feedback or
+                os.getenv("ENABLE_INTERACTIVE_FEEDBACK") == "1"
+            ) and os.getenv("NO_INTERACTIVE_FEEDBACK") != "1"
             is_interactive = hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
-            if os.getenv("NO_INTERACTIVE_FEEDBACK") == "1" or not is_interactive:
-                print("   ℹ️  Skipping interactive feedback (non-interactive or feedback disabled)")
+
+            if not should_prompt or not is_interactive:
+                print("   ℹ️  Skipping interactive feedback (non-interactive by default)")
             else:
                 feedback = input("   Was this answer accurate? (y/n, press Enter to skip): ").strip().lower()
                 if feedback in ['y', 'n']:
@@ -2209,8 +2256,14 @@ if __name__ == "__main__":
 
     # Case 1: Command line arguments provided
     if len(sys.argv) > 1:
-        cli_query = " ".join(sys.argv[1:]).strip()
-        query_gate(cli_query, embedder, collection, bm25, corpus)
+        args = [a for a in sys.argv[1:]]
+        interactive_fb = False
+        if "--interactive-feedback" in args:
+            args.remove("--interactive-feedback")
+            interactive_fb = True
+        cli_query = " ".join(args).strip()
+        if cli_query:
+            query_gate(cli_query, embedder, collection, bm25, corpus, enable_interactive_feedback=interactive_fb)
 
     # Case 2: Interactive terminal (e.g. running in VS Code terminal)
     elif hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
@@ -2234,7 +2287,7 @@ if __name__ == "__main__":
                 _run_benchmarks(embedder, collection, bm25, corpus)
                 continue
 
-            query_gate(user_input, embedder, collection, bm25, corpus)
+            query_gate(user_input, embedder, collection, bm25, corpus, enable_interactive_feedback=True)
 
     # Case 3: Non-interactive automated execution
     else:

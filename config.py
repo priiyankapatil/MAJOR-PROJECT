@@ -44,6 +44,9 @@ ENABLE_SB2_GUARDRAILS = True   # Set True to enable guarded SB2 alignment
 # ── Conformal Trust Scoring Settings ────────
 ENABLE_CONFORMAL_TRUST = False  # Set True to enable slow-path conformal trust scoring
 
+# ── Context Compression Settings ─────────────
+ENABLE_CONTEXT_COMPRESSION = False  # Set True to enable selective context distillation in slow path
+
 # ── Embedding model ────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 

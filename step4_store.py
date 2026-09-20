@@ -3,6 +3,12 @@
 # PHASE 7: Embed chunks and store in ChromaDB
 # =============================================
 
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import os
 import pickle
 import chromadb

@@ -8,17 +8,50 @@ import pdfplumber
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 
-# Ensure UTF-8 output encoding on Windows consoles
+# Prevent UnicodeEncodeError on Windows consoles with restricted codepages
 if hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stdout.reconfigure(errors="replace")
     except Exception:
         pass
 if hasattr(sys.stderr, "reconfigure"):
     try:
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(errors="replace")
     except Exception:
         pass
+
+
+def _safe_print(*args, **kwargs):
+    """
+    Encoding-safe print wrapper for console output.
+    Prevents UnicodeEncodeError on Windows consoles or redirected streams (e.g. cp1252, cp437, ascii)
+    without globally mutating the user's console or environment.
+    """
+    file = kwargs.get("file") or sys.stdout
+    sep = kwargs.get("sep", " ")
+    end = kwargs.get("end", "\n")
+    flush = kwargs.get("flush", False)
+    text = sep.join(str(a) for a in args)
+    try:
+        file.write(text + end)
+        if flush:
+            file.flush()
+    except UnicodeEncodeError:
+        encoding = getattr(file, "encoding", None) or "ascii"
+        safe_text = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+        file.write(safe_text + end)
+        if flush:
+            file.flush()
+    except Exception:
+        try:
+            safe_text = text.encode("ascii", errors="replace").decode("ascii")
+            file.write(safe_text + end)
+            if flush:
+                file.flush()
+        except Exception:
+            pass
+
+print = _safe_print
 
 try:
     from tavily import TavilyClient

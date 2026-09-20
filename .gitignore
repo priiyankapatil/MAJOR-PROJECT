@@ -16,3 +16,16 @@ backup_*/
 # Runtime retrieval index stores
 vector_store/
 knowledge_graph/*.pkl
+
+# Local vector database
+chroma_db/
+
+# Scratch scripts, temporary worktrees, and local debug artifacts
+scratch/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Local annotator pilot forms
+annotator_*_pilot.md
