@@ -352,16 +352,29 @@ def fast_path_answer(query, chunks):
     """
     Generate quick answer for simple queries.
 
-    MODEL: llama-3.3-70b-versatile
+    MODEL: openai/gpt-oss-20b (GROQ_GATE_MODEL)
     REASON: Fast, efficient for simple factual
             questions. Saves premium model quota.
     """
+    if not chunks:
+        return {
+            "answer": (
+                "⚠️ Insufficient verified context: No verified agricultural documents were available to answer this query. "
+                "Please consult your local Krishi Vigyan Kendra (KVK) or State Agricultural University extension."
+            ),
+            "model_used": "system/insufficient-context",
+            "sources": [],
+            "path": "fast",
+        }
+
     context = "\n\n".join(
-        [c["text"] for c in chunks[:3]]
+        [c["text"] for c in chunks[:3] if c.get("text")]
     )
-    sources = list({
-        c["source_file"] for c in chunks[:3]
-    })
+    sources = []
+    for c in chunks[:3]:
+        src = c.get("source_file") or c.get("source")
+        if src and src not in sources:
+            sources.append(src)
 
     try:
         response = client.chat.completions.create(
@@ -503,31 +516,6 @@ Provide structured recommendations:
 }
 
 
-def slow_path_answer(query, chunks, query_type):
-    """
-    Generate detailed answer for complex queries.
-
-    MODEL: openai/gpt-oss-120b
-    REASON: 120B parameter model with superior
-            reasoning for:
-            - Disease/pest diagnosis
-            - Complex recommendations
-            - Multi-step procedures
-            - Nuanced agricultural advice
-
-    This is your BEST model — use it for
-    anything that needs real intelligence.
-    """
-    if not chunks:
-        return {
-            "answer": (
-                "⚠️ Insufficient verified context: No verified agricultural documents were available to answer this query. "
-                "Please consult your local Krishi Vigyan Kendra (KVK) or State Agricultural University extension."
-            ),
-            "model_used": "system/insufficient-context",
-            "sources": [],
-            "path": "slow",
-        }
 
 def _get_synthetic_pesticide_names():
     try:
@@ -1621,109 +1609,103 @@ def query_gate(query, embedder=None, collection=None,
         print(f"   Top score : "
               f"{chunks[0]['final_score']}")
 
-    # ── Step 4C: Temporal credibility decay (optional) ──
+    # ── Step 4C: Temporal credibility decay ──
     retrieval_insufficient = False
     insufficient_reason = None
+    scored_chunks = []
 
-    if not is_fast_path:
-        try:
-            from temporal_credibility import (
-                score_all_chunks, filter_stale_chunks
-            )
-            from credibility_config import (
-                MIN_CREDIBILITY_THRESHOLD,
-                ENABLE_TEMPORAL_DECAY,
-                EVALUATION_YEAR,
-            )
-        except Exception:
-            ENABLE_TEMPORAL_DECAY = False
+    try:
+        from temporal_credibility import (
+            score_all_chunks, filter_stale_chunks
+        )
+        from credibility_config import (
+            MIN_CREDIBILITY_THRESHOLD,
+            ENABLE_TEMPORAL_DECAY,
+            EVALUATION_YEAR,
+        )
+    except Exception:
+        ENABLE_TEMPORAL_DECAY = False
 
-        if ENABLE_TEMPORAL_DECAY:
-            print("\n⏳ Step 4C: Applying Temporal Credibility Decay...")
-            scored_chunks = score_all_chunks(chunks, query_type=q_type, current_year=EVALUATION_YEAR)
-            filtered_chunks = filter_stale_chunks(scored_chunks, min_score=MIN_CREDIBILITY_THRESHOLD)
+    if ENABLE_TEMPORAL_DECAY and chunks and not is_fast_path and q_type in ["RECOMMENDATION", "DIAGNOSTIC", "PROCEDURAL"]:
+        print("\n⏳ Step 4C: Applying Temporal Credibility Decay...")
+        scored_chunks = score_all_chunks(chunks, query_type=q_type, current_year=EVALUATION_YEAR)
+        filtered_chunks = filter_stale_chunks(scored_chunks, min_score=MIN_CREDIBILITY_THRESHOLD)
 
-            print(f"   Chunks before filter : {len(scored_chunks)}")
-            print(f"   Chunks after filter  : {len(filtered_chunks)}")
-            for c in scored_chunks:
-                label = c.get('freshness_label', 'UNKNOWN')
-                score = c.get('temporal_score', 0)
-                src   = c.get('source_file', c.get('source', 'unknown'))
-                print(f"   [{label}] {src} → score: {score:.4f}")
+        print(f"   Chunks before filter : {len(scored_chunks)}")
+        print(f"   Chunks after filter  : {len(filtered_chunks)}")
+        for c in scored_chunks:
+            label = c.get('freshness_label', 'UNKNOWN')
+            score = c.get('temporal_score', 0)
+            src   = c.get('source_file', c.get('source', 'unknown'))
+            print(f"   [{label}] {src} → score: {score:.4f}")
 
-            chunks_to_use = filtered_chunks
-            if len(chunks_to_use) == 0 and len(chunks) > 0:
-                print("   ⚠️  All candidate chunks rejected as outdated/stale under temporal credibility decay.")
-                retrieval_insufficient = True
-                insufficient_reason = "All retrieved documents were rejected as outdated or stale under temporal credibility evaluation."
-        else:
-            chunks_to_use = chunks
-
-        # Replace `chunks` with `chunks_to_use` (never silently reintroduce rejected stale chunks)
-        chunks = chunks_to_use
+        chunks_to_use = filtered_chunks
+        if len(chunks_to_use) == 0 and len(chunks) > 0:
+            print("   ⚠️  All candidate chunks rejected as outdated/stale under temporal credibility decay.")
+            retrieval_insufficient = True
+            insufficient_reason = "All retrieved documents were rejected as outdated or stale under temporal credibility evaluation."
     else:
-        print("\n⏭️  Step 4C: Skipped (FAST path)")
-        scored_chunks = []
+        chunks_to_use = chunks
+
+    # Replace `chunks` with `chunks_to_use` (never silently reintroduce rejected stale chunks)
+    chunks = chunks_to_use
 
     # ── Step 4D: Phenological Gate (PGRA) ──
-    if is_fast_path:
-        print("\n⏭️  Step 4D: Skipped (FAST path)")
-    else:
-        try:
-            from phenology_gate import apply_phenological_gate
-            PHENO_AVAILABLE = True
-        except Exception:
-            PHENO_AVAILABLE = False
+    try:
+        from phenology_gate import apply_phenological_gate
+        PHENO_AVAILABLE = True
+    except Exception:
+        PHENO_AVAILABLE = False
 
-        if PHENO_AVAILABLE and q_type in ["RECOMMENDATION", "DIAGNOSTIC", "PROCEDURAL"]:
-            print("\n🚧 Step 4D: Applying Phenological Gate...")
+    if PHENO_AVAILABLE and chunks and q_type in ["RECOMMENDATION", "DIAGNOSTIC", "PROCEDURAL"]:
+        print("\n🚧 Step 4D: Applying Phenological Gate...")
 
-            # Extract location coordinates only if explicitly mentioned in query
-            gate_lat, gate_lon = None, None
-            if WEATHER_ENRICHMENT_AVAILABLE:
-                try:
-                    from step8_weather_rag import LOCATION_PATTERNS
-                    for pat in LOCATION_PATTERNS:
-                        m = re.search(pat, query)
-                        if m:
-                            explicit_loc = m.group(1)
-                            from weather_fetcher import get_coordinates
-                            coords = get_coordinates(explicit_loc)
-                            if coords.get("found"):
-                                gate_lat, gate_lon = coords["lat"], coords["lon"]
-                            break
-                except Exception:
-                    gate_lat, gate_lon = None, None
-
+        # Extract location coordinates only if explicitly mentioned in query
+        gate_lat, gate_lon = None, None
+        if WEATHER_ENRICHMENT_AVAILABLE:
             try:
-                gate_result = apply_phenological_gate(
-                    chunks=chunks,
-                    query=query,
-                    lat=gate_lat,
-                    lon=gate_lon
-                )
+                from step8_weather_rag import LOCATION_PATTERNS
+                for pat in LOCATION_PATTERNS:
+                    m = re.search(pat, query)
+                    if m:
+                        explicit_loc = m.group(1)
+                        from weather_fetcher import get_coordinates
+                        coords = get_coordinates(explicit_loc)
+                        if coords.get("found"):
+                            gate_lat, gate_lon = coords["lat"], coords["lon"]
+                        break
+            except Exception:
+                gate_lat, gate_lon = None, None
 
-                chunks_to_use_after_gate = gate_result.get("allowed_chunks", [])
+        try:
+            gate_result = apply_phenological_gate(
+                chunks=chunks,
+                query=query,
+                lat=gate_lat,
+                lon=gate_lon
+            )
 
-                print(f"\n   📋 Gate Summary:")
-                print(f"   Stage        : {gate_result.get('stage')} ({gate_result.get('stage_source')})")
-                print(f"   Input chunks : {gate_result.get('total_input')}")
-                print(f"   After gate   : {gate_result.get('allowed_count')} allowed, {gate_result.get('blocked_count')} blocked")
+            chunks_to_use_after_gate = gate_result.get("allowed_chunks", [])
 
-                if len(chunks) > 0 and gate_result.get("allowed_count", 0) == 0:
-                    print("   ⚠️  All candidate chunks blocked by phenological stage incompatibility.")
-                    retrieval_insufficient = True
-                    insufficient_reason = f"All candidate chunks were incompatible with current crop stage ({gate_result.get('stage')})."
-                    chunks_to_use_after_gate = []
+            print(f"\n   📋 Gate Summary:")
+            print(f"   Stage        : {gate_result.get('stage')} ({gate_result.get('stage_source')})")
+            print(f"   Input chunks : {gate_result.get('total_input')}")
+            print(f"   After gate   : {gate_result.get('allowed_count')} allowed, {gate_result.get('blocked_count')} blocked")
 
-                # Use gate-filtered chunks downstream (NEVER fallback to blocked chunks)
-                chunks = chunks_to_use_after_gate
+            if len(chunks) > 0 and gate_result.get("allowed_count", 0) == 0:
+                print("   ⚠️  All candidate chunks blocked by phenological stage incompatibility.")
+                retrieval_insufficient = True
+                insufficient_reason = f"All candidate chunks were incompatible with current crop stage ({gate_result.get('stage')})."
+                chunks_to_use_after_gate = []
 
-            except Exception as e:
-                print(f"   ⚠️  Phenological gate failed: {e}")
-                chunks = chunks
-        else:
-            print("\n⏭️  Step 4D: Phenological gate skipped (non-crop or unavailable)")
+            # Use gate-filtered chunks downstream (NEVER fallback to blocked chunks)
+            chunks = chunks_to_use_after_gate
+
+        except Exception as e:
+            print(f"   ⚠️  Phenological gate failed: {e}")
+            chunks = chunks
+    else:
+        print("\n⏭️  Step 4D: Phenological gate skipped (non-crop or unavailable)")
 
     # ── Step 4B: Weather enrichment (for recommendations) ──
     weather_data = None
@@ -1847,6 +1829,9 @@ def query_gate(query, embedder=None, collection=None,
     # ── Step 5B: Sentence-level provenance mapping ──
     if is_fast_path:
         print("\n⏭️  Step 5B: Skipped (FAST path)")
+        answer_data["provenance_summary"] = None
+        answer_data["is_factually_proven"] = False
+        answer_data["factually_validated"] = False
     elif answer_failed:
         print("\n⏭️  Step 5B: Skipped (generation empty, failed, or insufficient evidence)")
     else:

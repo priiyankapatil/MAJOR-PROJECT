@@ -89,6 +89,17 @@ def score_all_chunks(retrieved_chunks, query_type, current_year=None):
         matched = _match_source(fname)
         if matched:
             sc = compute_temporal_score(matched, query_type, current_year)
+        elif c.get("temporal_score") is not None and c.get("freshness_label") is not None:
+            # Preserve already-evaluated or mock credibility metadata
+            sc = {
+                "source": fname,
+                "base_score": float(c.get("temporal_score")),
+                "pub_year": current_year,
+                "age_years": int(c.get("age_years", 0)),
+                "decay_lambda": DECAY_CONSTANTS.get(query_type, 0.05),
+                "final_score": float(c.get("temporal_score")),
+                "freshness_label": c.get("freshness_label"),
+            }
         else:
             # No match: treat as unknown/low trust but recent
             sc = compute_temporal_score(None, query_type, current_year)

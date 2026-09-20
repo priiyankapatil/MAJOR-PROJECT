@@ -360,7 +360,7 @@ FOLK_TAXONOMY = {
         "english": "Farmyard Manure",
         "category": "fertilizer",
         "aliases": ["gobar", "FYM", "farm manure", "dung manure",
-                    "kadaru", "kode sappu", "organic manure"]
+                    "kadaru", "kode sappu"]
     },
     "hara khad": {
         "scientific": "Green Manure",
@@ -406,7 +406,7 @@ for key, data in FOLK_TAXONOMY.items():
 STOPWORDS = {
     # English stopwords
     "my", "is", "the", "a", "an", "in", "on", "at", "to", "do",
-    "has", "have", "what", "how", "why", "when", "where", "which",
+    "has", "have", "what", "whats", "what's", "how", "why", "when", "where", "which",
     "can", "will", "for", "of", "and", "or", "but", "not", "be",
     "are", "was", "were", "it", "its", "this", "that", "with",
     "from", "by", "as", "if", "so", "up", "out", "get", "use",

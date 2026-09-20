@@ -77,8 +77,8 @@ def enrich_query(query: str, detected_terms: list) -> str:
         eng = t.get('english', '')
         sci = t.get('scientific', '')
         replacement = f"{folk} ({eng}, {sci})"
-        # replace all case-insensitive occurrences
-        enriched = re.sub(re.escape(folk), replacement, enriched, flags=re.IGNORECASE)
+        # replace all case-insensitive occurrences using word boundaries to avoid substring corruption
+        enriched = re.sub(rf"\b{re.escape(folk)}\b", replacement, enriched, flags=re.IGNORECASE)
     return enriched
 
 
