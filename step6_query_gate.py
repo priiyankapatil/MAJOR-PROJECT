@@ -1239,29 +1239,22 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
                 if contains_synthetic or has_table_dosage:
                     parts = [p.strip() for p in line.strip().split("|")[1:-1]]
                     num_cols = len(parts)
+                    # Compact placeholder — fits in narrow table columns without wrapping,
+                    # and pairs cleanly with the single regulatory disclaimer footer.
+                    _WITHHELD = "[Chemical withheld — verify label dose with local KVK]"
                     if num_cols == 1:
-                        new_parts = ["⛔ UNVERIFIED / BLOCKED (Chemical treatment withheld under OFFLINE_STATIC_KB; consult KVK)"]
+                        new_parts = [_WITHHELD]
                     elif num_cols == 2:
-                        new_parts = [parts[0], "⛔ UNVERIFIED / BLOCKED (Chemical treatment withheld under OFFLINE_STATIC_KB; consult KVK)"]
+                        new_parts = [parts[0], _WITHHELD]
                     elif num_cols == 3:
-                        new_parts = [
-                            parts[0],
-                            "⛔ UNVERIFIED / BLOCKED",
-                            "Live CIB&RC registration is unverified under OFFLINE_STATIC_KB. Actionable chemical sprays are blocked. Consult local KVK for approved products."
-                        ]
+                        new_parts = [parts[0], _WITHHELD, "Consult local KVK"]
                     elif num_cols == 4:
-                        new_parts = [
-                            parts[0],
-                            "⛔ UNVERIFIED / BLOCKED",
-                            "Chemical treatment withheld (OFFLINE_STATIC_KB)",
-                            "Consult local KVK for approved products."
-                        ]
+                        new_parts = [parts[0], _WITHHELD, "Consult local KVK", "—"]
                     else:
-                        # num_cols >= 5: Preserve exact column count
-                        new_parts = [parts[0], "⛔ UNVERIFIED / BLOCKED", "Chemical treatment withheld (OFFLINE_STATIC_KB)"]
-                        while len(new_parts) < num_cols - 1:
-                            new_parts.append("Dosage withheld (unverified live)")
-                        new_parts.append("Consult local KVK for approved products.")
+                        # num_cols >= 5: fill remaining columns with em-dashes
+                        new_parts = [parts[0], _WITHHELD]
+                        while len(new_parts) < num_cols:
+                            new_parts.append("—")
 
                     line = "| " + " | ".join(new_parts) + " |"
 
