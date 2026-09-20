@@ -115,14 +115,21 @@ def get_phenological_stage(query: str, lat: float, lon: float) -> dict:
         source = "INSUFFICIENT_CONTEXT"
         satellite = {"source": "SKIPPED", "stage": None, "confidence": 0.0}
     else:
-        satellite = get_satellite_stage(lat, lon, crop)
-        if satellite.get("confidence", 0) > 0:
-            final_stage = satellite.get("stage")
-            source = "SATELLITE"
-        else:
-            cal = get_crop_stage(query)
+        # Prioritize stage derived from seasonal context / crop calendar so stage remains coherent
+        cal = get_crop_stage(query)
+        if cal and cal.get("stage") and cal.get("stage") != "unknown":
             final_stage = cal.get("stage")
             source = "CALENDAR"
+            satellite = {"source": "BYPASSED", "stage": None, "confidence": 0.0}
+        else:
+            satellite = get_satellite_stage(lat, lon, crop)
+            sat_stage = satellite.get("stage", "")
+            if satellite.get("confidence", 0) > 0 and "winter" not in str(sat_stage).lower() and "dormancy" not in str(sat_stage).lower():
+                final_stage = sat_stage
+                source = "SATELLITE"
+            else:
+                final_stage = "unknown/insufficient_context"
+                source = "INSUFFICIENT_CONTEXT"
 
     month = datetime.now().month
 

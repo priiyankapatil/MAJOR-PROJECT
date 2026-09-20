@@ -100,11 +100,12 @@ def _load_environment_variables() -> None:
 
 _load_environment_variables()
 
-try:
-    from regulatory_updater import run_startup_update
-    run_startup_update(borderline_pesticides=None)
-except Exception as e:
-    print(f"ℹ️  Regulatory updater startup notice: {e} (static KB remains active)")
+if os.environ.get("RUN_REGULATORY_UPDATE_ON_STARTUP") == "1":
+    try:
+        from regulatory_updater import run_startup_update
+        run_startup_update(borderline_pesticides=None)
+    except Exception as e:
+        print(f"⚠️ Regulatory update skipped: {e}")
 
 import config
 from config import (
@@ -968,10 +969,64 @@ def _scrub_water_depths(text: str, chunks: list = None) -> str:
         "(consult local KVK for field-specific irrigation guidance; avoid prolonged standing water)"
     )
 
-    # 1. Table cell pattern: table cell with water depth label followed by adjacent measurement cell
+    # 1. Columnar table scrubber: detects column indices with "water depth" or "standing water"
+    # in markdown table header rows and scrubs invalid values in matching column cells.
+    lines = text.split("\n")
+    new_lines = []
+    target_cols = set()
+    in_table = False
+
+    water_header_pat = re.compile(
+        r"(?i)\b(?:standing\s+water|water\s+depth|depth\s+of\s+water|water\s+level|submergence)\b"
+    )
+    val_pat = re.compile(
+        r"(?i)\b(\d+\s*(?:[–\-]|to)\s*\d+|\d+(?:\.\d+)?)\s*(cm|centimeters?|centimetres?|inches)\b"
+    )
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            parts = line.split("|")
+            cells = parts[1:-1]
+            is_sep = all(re.match(r"^\s*:?-+:?\s*$", c) for c in cells) if cells else False
+
+            if not in_table and not is_sep:
+                in_table = True
+                target_cols = set()
+                for idx, cell in enumerate(cells):
+                    if water_header_pat.search(cell):
+                        target_cols.add(idx)
+                new_lines.append(line)
+            elif is_sep:
+                new_lines.append(line)
+            else:
+                if target_cols:
+                    new_cells = list(cells)
+                    for c_idx in target_cols:
+                        if c_idx < len(new_cells):
+                            cell_val = new_cells[c_idx]
+                            m = val_pat.search(cell_val)
+                            if m:
+                                rate_phrase = f"{m.group(1)} {m.group(2)}"
+                                if not _is_rate_verified_in_context("water", rate_phrase, chunks):
+                                    new_cells[c_idx] = val_pat.sub(
+                                        "recommended levels (consult KVK; ensure proper drainage)",
+                                        cell_val
+                                    )
+                    new_lines.append("|" + "|".join(new_cells) + "|")
+                else:
+                    new_lines.append(line)
+        else:
+            in_table = False
+            target_cols = set()
+            new_lines.append(line)
+
+    text = "\n".join(new_lines)
+
+    # 2. Key-value table cell pattern: table cell with water depth label followed by adjacent measurement cell
     # e.g. "| Water Depth | 5–7 cm |" or "| Standing Water | 5 cm |"
     p_table = (
-        r"(?i)(\|\s*(?:[^\n\|]*?\b(?:standing\s+water|water\s+depth|depth\s+of\s+water|water\s+level|submergence)\b[^\n\|]*?)\|\s*)"
+        r"(?i)(\|\s*(?:(?!consult\s+KVK)[^\n\|]*?\b(?:standing\s+water|water\s+depth|depth\s+of\s+water|water\s+level|submergence)\b[^\n\|]*?)\|\s*)"
         r"([^\n\|]*?\b(\d+\s*(?:[–\-]|to)\s*\d+|\d+(?:\.\d+)?)\s*(cm|centimeters?|centimetres?|inches)\b[^\n\|]*?)"
         r"(\s*\|)"
     )
@@ -987,12 +1042,12 @@ def _scrub_water_depths(text: str, chunks: list = None) -> str:
             return m.group(0)
         new_cell = re.sub(
             rf"\b{re.escape(num)}\s*{re.escape(unit)}\b",
-            "recommended levels (consult KVK; avoid standing water)",
+            "recommended levels (consult KVK; ensure proper drainage)",
             raw_cell
         )
         return f"{prefix}{new_cell}{suffix}"
 
-    # 2. Prefix pattern: explicit water context preceding numerical measurement
+    # 3. Prefix pattern: explicit water context preceding numerical measurement
     # e.g. "maintain standing water of 5-7 cm", "water depth of 10 cm", "maintain water depth at 5 cm"
     p1 = (
         r"(?i)\(?\s*(?:\b(?:maintain|keep|ensure|hold|provide)\s+)?\b"
@@ -1001,7 +1056,7 @@ def _scrub_water_depths(text: str, chunks: list = None) -> str:
         r"(\d+\s*(?:[–\-]|to)\s*\d+|\d+(?:\.\d+)?)\s*(cm|centimeters?|centimetres?|inches)\b\s*\)?"
     )
 
-    # 3. Suffix pattern: numerical measurement followed by explicit water context
+    # 4. Suffix pattern: numerical measurement followed by explicit water context
     # e.g. "5-7 cm of standing water", "10 cm water depth", "5 cm submergence", "5 cm depth of water"
     # Excludes non-depth water phrases: pipe, piping, tube, tubing, trap, channel, pump, furrow, etc.
     p2 = (
@@ -1560,6 +1615,14 @@ def query_gate(query, embedder=None, collection=None,
 
     Returns complete result dict.
     """
+    if not query or not str(query).strip():
+        return {
+            "status": "error",
+            "error": "Empty or invalid query provided.",
+            "model_used": "system/input-validation-guard",
+            "answer": "Please provide a valid query describing the crop, symptom, or agricultural question."
+        }
+
     if embedder is None or collection is None or bm25 is None or corpus is None:
         c_embedder, c_collection, c_bm25, c_corpus = get_or_load_components()
         embedder = embedder if embedder is not None else c_embedder
@@ -1727,6 +1790,23 @@ def query_gate(query, embedder=None, collection=None,
                 lon=gate_lon
             )
 
+            # Consolidate phenological stage detection: prioritize seasonal context / crop calendar
+            # and bypass mock SATELLITE fallback that outputs contradictory winter/dormancy stages
+            stage_val = str(gate_result.get("stage", ""))
+            if (
+                gate_result.get("stage_source") == "SATELLITE"
+                or "winter" in stage_val.lower()
+                or "dormancy" in stage_val.lower()
+            ):
+                try:
+                    from crop_calendar import get_crop_stage
+                    cal_info = get_crop_stage(query)
+                    if cal_info and cal_info.get("stage") and cal_info.get("stage") != "unknown":
+                        gate_result["stage"] = cal_info.get("stage")
+                        gate_result["stage_source"] = "CALENDAR"
+                except Exception:
+                    pass
+
             chunks_to_use_after_gate = gate_result.get("allowed_chunks", [])
 
             print(f"\n   📋 Gate Summary:")
@@ -1871,6 +1951,10 @@ def query_gate(query, embedder=None, collection=None,
     # ── Step 5B: Sentence-level provenance mapping ──
     if is_fast_path:
         print("\n⏭️  Step 5B: Skipped (FAST path)")
+        answer_data["provenance_summary"] = None
+        answer_data["is_factually_proven"] = False
+        answer_data["factually_validated"] = False
+    elif os.environ.get("ENABLE_PROVENANCE_LOGGING") != "1":
         answer_data["provenance_summary"] = None
         answer_data["is_factually_proven"] = False
         answer_data["factually_validated"] = False
