@@ -382,6 +382,12 @@ def make_routing_decision(entropy, classification, threshold=None):
 #      Saves gpt-oss-120b for complex tasks.
 # ─────────────────────────────────────────────
 
+FAST_PATH_SYSTEM_PROMPT = """You are an expert agricultural assistant.
+Answer the user's question directly and concisely (2-4 sentences maximum).
+Include exact numeric rates, units, and conditions (e.g., timely vs late sown) if provided in the context.
+Do NOT explain your thought process. Do NOT restate the instructions. Output ONLY the final answer text."""
+
+
 def fast_path_answer(query, chunks):
     """
     Generate quick answer for simple queries.
@@ -412,14 +418,11 @@ def fast_path_answer(query, chunks):
 
     try:
         response = client.chat.completions.create(
-            model    = GROQ_GATE_MODEL,   # llama-3.3-70b
+            model    = GROQ_GATE_MODEL,
             messages = [
                 {
                     "role"   : "system",
-                    "content": """You are an agricultural expert
-                    for Indian farmers. Answer ONLY from context.
-                    Be concise — 2-4 sentences maximum.
-                    Include specific numbers/quantities if present."""
+                    "content": FAST_PATH_SYSTEM_PROMPT
                 },
                 {
                     "role"   : "user",
@@ -428,7 +431,7 @@ def fast_path_answer(query, chunks):
 
 Question: {query}
 
-Give a direct, concise answer."""
+Respond directly starting with 'FINAL ANSWER:'. Do not write any thoughts before it."""
                 }
             ],
             temperature = 0.1,
@@ -438,6 +441,16 @@ Give a direct, concise answer."""
         content = response.choices[0].message.content or ""
         if not content and hasattr(response.choices[0].message, "reasoning"):
             content = response.choices[0].message.reasoning or ""
+
+        # Output prefix/delimiter guard: strip conversational reasoning or delimiters if leaked
+        if "FINAL ANSWER:" in content:
+            content = content.split("FINAL ANSWER:")[-1].strip()
+        elif "Let's answer:" in content:
+            content = content.split("Let's answer:")[-1].strip()
+        elif "Answer:" in content and any(lead in content[:120] for lead in ["So we can", "Thinking", "Based on", "In summary"]):
+            content = content.split("Answer:")[-1].strip()
+
+        content = content.strip()
     except Exception as e:
         print(f"   ⚠️  Fast path generation error: {e}")
         content = f"⚠️ Generation temporarily unavailable: {e}"
