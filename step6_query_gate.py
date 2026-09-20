@@ -1276,11 +1276,10 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
             i += 1
             continue
 
-        blocked_msg = (
-            "• **Chemical treatment blocked (OFFLINE_STATIC_KB):** Live CIB&RC registration is unverified. "
-            "Synthetic chemical prescriptions and dosages are withheld and blocked without live regulatory verification. "
-            "Consult local Krishi Vigyan Kendra (KVK) for current label-approved options."
-        )
+        # ── Deduplication: track whether any chemical line was suppressed ──
+        # Instead of injecting a blocked_msg bullet per-line, we redact the chemical
+        # name inline and append ONE clean regulatory disclaimer at the very end.
+        offline_flag_triggered = False
 
         # 2. Check for actionable prescription keywords
         is_prescription = any(
@@ -1292,15 +1291,25 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
 
         # 3. Line break evasion: chemical on line i, prescription rate on line i+1 (or both)
         if contains_synthetic and next_has_rate:
-            new_lines.append(blocked_msg)
+            # Redact chemical name inline; consume the dosage continuation line silently
+            for term in synthetic_terms:
+                line = re.sub(rf"(?i)\b{re.escape(term)}\b", "[chemical withheld]", line)
+            new_lines.append(line)
             i += 2  # consume both chemical and rate line
+            offline_flag_triggered = True
             continue
 
         if contains_synthetic:
-            # If an actionable prescription is present, block the entire prescription line.
-            # Disclaimers like 'unverified', 'historical', or 'withheld' must NOT prevent blocking.
             if is_prescription:
-                line = blocked_msg
+                # Redact the chemical name and dosage inline rather than replacing the entire line
+                for term in synthetic_terms:
+                    line = re.sub(rf"(?i)\b{re.escape(term)}\b", "[chemical withheld]", line)
+                line = re.sub(
+                    r"(?i)(\d+(?:\.\d+)?\s*(?:ml(?:\s*/\s*l)?|g(?:m)?(?:\s*/\s*l)?|kg(?:\s*/\s*ha)?|l(?:\s*/\s*ha)?|%|ppm))",
+                    "[dosage withheld]",
+                    line
+                )
+                offline_flag_triggered = True
             else:
                 # Purely historical or descriptive reference: remove specific brand/chemical names and dosages
                 line = re.sub(
@@ -1332,11 +1341,42 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
         i += 1
 
     sanitized_text = "\n".join(new_lines)
+
+    # Strip any stale repeated OFFLINE_STATIC_KB placeholder bullets that may have
+    # been injected by previous scrubber passes (deduplication guard)
+    sanitized_text = re.sub(
+        r"(?:[•\-\*]\s*)?\*{0,2}Chemical treatment blocked \(OFFLINE_STATIC_KB\):\*{0,2}.*?(?=\n\n|\n[•\-\*]|\Z)",
+        "",
+        sanitized_text,
+        flags=re.DOTALL,
+    ).strip()
+
     # Apply full-context agronomic integrity scrubbers
     sanitized_text = _scrub_pest_parasitoid_mismatches(sanitized_text, chunks=chunks)
     sanitized_text = _scrub_water_depths(sanitized_text, chunks=chunks)
     sanitized_text = _scrub_destructive_practices(sanitized_text, chunks=chunks)
     sanitized_text = _scrub_unverified_agronomic_claims(sanitized_text, chunks=chunks)
+
+    # ── Single clean regulatory disclaimer (appended once at the very end) ──
+    # Only appended if this function suppressed synthetic chemical content OR the
+    # caller flagged an offline regulatory status.
+    if is_offline_reg and (
+        offline_flag_triggered
+        or any(
+            re.search(r"(?i)\bchemical treatment withheld\b|\bchemical withheld\b|\bdosage withheld\b", sanitized_text)
+        )
+    ):
+        disclaimer_block = (
+            "\n\n---\n"
+            "> ⚠️ **Regulatory Advisory (Offline Static KB):** Chemical prescriptions above reflect "
+            "State Agricultural University (SAU/ICAR) package of practices. Live CIB&RC registration "
+            "is currently unverified. Verify label-approved products, dosages, and pre-harvest intervals "
+            "(PHI) with your local Krishi Vigyan Kendra (KVK) before application."
+        )
+        # Avoid appending the block if it is already present
+        if "Regulatory Advisory (Offline Static KB)" not in sanitized_text:
+            sanitized_text = sanitized_text.strip() + disclaimer_block
+
     return sanitized_text
 
 
@@ -1833,7 +1873,22 @@ def query_gate(query, embedder=None, collection=None,
                 insufficient_reason = f"All candidate chunks were incompatible with current crop stage ({gate_result.get('stage')})."
                 chunks_to_use_after_gate = []
 
-            # Use gate-filtered chunks downstream (NEVER fallback to blocked chunks)
+            # ── Fail-open guard: prevent retrieval starvation for pest/spray queries ──
+            # If the gate filters too aggressively (fewer than 2 chunks survive) and the
+            # query is RECOMMENDATION or DIAGNOSTIC (pest control, spraying, disease),
+            # preserve the original candidate set so the generator still receives context.
+            if (
+                len(chunks_to_use_after_gate) < 2
+                and len(chunks) >= 2
+                and q_type in ["RECOMMENDATION", "DIAGNOSTIC"]
+            ):
+                print(
+                    f"   ℹ️  Phenology gate: Preserving {len(chunks)} candidate chunks to prevent "
+                    "retrieval starvation (fail-open for pest/spray query)."
+                )
+                chunks_to_use_after_gate = chunks
+
+            # Use gate-filtered chunks downstream
             chunks = chunks_to_use_after_gate
 
         except Exception as e:
