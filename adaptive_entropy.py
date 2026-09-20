@@ -10,10 +10,11 @@ MAX_THRESHOLD = 2.5
 MIN_FEEDBACK_COUNT = 3
 
 
-def load_feedback_log():
-    if os.path.exists(FEEDBACK_LOG_PATH):
+def load_feedback_log(log_path: str = None):
+    path = log_path or FEEDBACK_LOG_PATH
+    if os.path.exists(path):
         try:
-            with open(FEEDBACK_LOG_PATH, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -27,13 +28,15 @@ def load_feedback_log():
     }
 
 
-def save_feedback_log(log: dict):
-    with open(FEEDBACK_LOG_PATH, "w", encoding="utf-8") as f:
+def save_feedback_log(log: dict, log_path: str = None):
+    path = log_path or FEEDBACK_LOG_PATH
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(log, f, indent=2)
 
 
-def record_feedback(query, entropy, path_used, was_accurate: bool):
-    log = load_feedback_log()
+def record_feedback(query, entropy, path_used, was_accurate: bool, log_path: str = None):
+    target_path = log_path or FEEDBACK_LOG_PATH
+    log = load_feedback_log(target_path)
     entry = {
         "query": query,
         "entropy": float(entropy),
@@ -48,31 +51,34 @@ def record_feedback(query, entropy, path_used, was_accurate: bool):
     if log["total_feedbacks"] >= MIN_FEEDBACK_COUNT:
         adapt_threshold(log)
 
-    save_feedback_log(log)
+    save_feedback_log(log, target_path)
     print(f"🧠 Feedback recorded: path={path_used}, accurate={was_accurate}, entropy={entropy}")
 
 
-def adapt_threshold(log: dict):
+def compute_path_accuracy(entries: list):
+    if not entries:
+        return None
+    correct = sum(1 for e in entries if e.get("was_accurate") is True)
+    return correct / len(entries)
+
+
+def adapt_threshold(log: dict, min_path_observations: int = 3):
     fast = log.get("fast_path_feedback", [])
     slow = log.get("slow_path_feedback", [])
 
-    def accuracy(entries):
-        if not entries:
-            return None
-        return sum(1 for e in entries if e.get("was_accurate")) / len(entries)
-
-    fast_acc = accuracy(fast) or 0.0
-    slow_acc = accuracy(slow) or 0.0
+    fast_acc = compute_path_accuracy(fast)
+    slow_acc = compute_path_accuracy(slow)
 
     old = float(log.get("current_threshold", INITIAL_THRESHOLD))
     new = old
+    reason = "no_change"
 
-    # If fast path is often wrong, lower threshold so more go to slow
-    if fast_acc < 0.6:
+    # Only adapt if we have sufficient observations for the path under evaluation
+    if fast_acc is not None and len(fast) >= min_path_observations and fast_acc < 0.6:
         new = old - LEARNING_RATE
         reason = "fast_low_accuracy"
-    # If both are very accurate, raise threshold slightly to favor fast path
-    elif fast_acc > 0.85 and slow_acc > 0.85:
+    elif (fast_acc is not None and len(fast) >= min_path_observations and fast_acc > 0.85 and
+          slow_acc is not None and len(slow) >= min_path_observations and slow_acc > 0.85):
         new = old + (LEARNING_RATE / 2)
         reason = "both_high_accuracy"
     else:
@@ -86,13 +92,14 @@ def adapt_threshold(log: dict):
         "timestamp": datetime.now().isoformat(),
         "old_threshold": round(old, 3),
         "new_threshold": round(new, 3),
-        "fast_accuracy": round(fast_acc, 3),
-        "slow_accuracy": round(slow_acc, 3),
+        "fast_accuracy": round(fast_acc, 3) if fast_acc is not None else None,
+        "slow_accuracy": round(slow_acc, 3) if slow_acc is not None else None,
         "reason": reason,
     }
     log.setdefault("threshold_history", []).append(hist)
 
-    print(f"🔄 Threshold adapted: {old} → {new} (fast_acc={fast_acc:.2f}, slow_acc={slow_acc:.2f})")
+    print(f"🔄 Threshold adapted: {old} → {new} (reason={reason}, fast_acc={fast_acc}, slow_acc={slow_acc})")
+    return log
 
 
 def get_current_threshold():

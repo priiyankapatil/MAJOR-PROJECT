@@ -1,5 +1,19 @@
-#!/usr/bin/env python3
-"""Test query gate with crop management specific query"""
+import sys
+import os
+
+# Ensure UTF-8 output encoding on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+os.environ.setdefault("NO_INTERACTIVE_FEEDBACK", "1")
 
 from step6_query_gate import QueryGate
 

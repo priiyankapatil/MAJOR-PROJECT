@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import re
@@ -6,6 +7,18 @@ import requests
 import pdfplumber
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+
+# Ensure UTF-8 output encoding on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 try:
     from tavily import TavilyClient
@@ -358,6 +371,53 @@ def get_effective_status(pesticide_name: str) -> dict:
     }
 
 
+_LIVE_VERIFICATION_STATE = {
+    "cibrc_live_verified": False,
+    "eu_sante_live_verified": False,
+    "last_checked": None
+}
+
+
+def get_regulatory_verification_status() -> dict:
+    """
+    Returns explicit structured status of regulatory verification sources.
+    Live verification requires actual successful execution of source checks,
+    not merely optional dependency availability.
+    """
+    cibrc_ok = bool(_LIVE_VERIFICATION_STATE.get("cibrc_live_verified", False))
+    eu_ok = bool(_LIVE_VERIFICATION_STATE.get("eu_sante_live_verified", False))
+    tavily_avail = (TavilyClient is not None)
+    groq_avail = (Groq is not None)
+    can_update = tavily_avail and groq_avail
+
+    if cibrc_ok and eu_ok:
+        mode = "LIVE_VERIFIED"
+        disclaimer = "Status verified against live CIB&RC and EU SANTE gazettes."
+        freshness = "CHECKED"
+    elif cibrc_ok or eu_ok:
+        mode = "PARTIAL_LIVE_VERIFIED"
+        verified_src = "CIB&RC" if cibrc_ok else "EU SANTE"
+        unverified_src = "EU SANTE" if cibrc_ok else "CIB&RC"
+        disclaimer = f"Status partially verified against live {verified_src}; {unverified_src} unverified (static KB active)."
+        freshness = "PARTIALLY_CHECKED"
+    else:
+        mode = "OFFLINE_STATIC_KB"
+        disclaimer = (
+            "Status based on static baseline regulatory KB. Live CIB&RC and EU SANTE checks were skipped "
+            "or unverified. Not verified against live gazettes."
+        )
+        freshness = "UNKNOWN (Live check skipped / unverified)"
+
+    return {
+        "live_update_available": can_update,
+        "cibrc_live_verified": cibrc_ok,
+        "eu_sante_live_verified": eu_ok,
+        "mode": mode,
+        "freshness": freshness,
+        "disclaimer": disclaimer,
+    }
+
+
 def run_startup_update(borderline_pesticides: list = None):
     print("\n" + "="*60)
     print("🔄 REGULATORY KB AUTO-UPDATE STARTING...")
@@ -408,6 +468,7 @@ def run_startup_update(borderline_pesticides: list = None):
     print("   Scraping CIB&RC...")
     cibrc_result = scrape_cibrc()
     if cibrc_result["success"]:
+        _LIVE_VERIFICATION_STATE["cibrc_live_verified"] = True
         print(f"   ✅ CIB&RC scraped — {cibrc_result['raw_count']} entries found")
         append_update_log({
             "type": "SCRAPE",
@@ -416,6 +477,7 @@ def run_startup_update(borderline_pesticides: list = None):
             "action_taken": f"Found {cibrc_result['raw_count']} pesticide entries"
         })
     else:
+        _LIVE_VERIFICATION_STATE["cibrc_live_verified"] = False
         print(f"   ⚠️  CIB&RC scrape failed: {cibrc_result['error_type']}")
         append_update_log({
             "type": "SCRAPE",
@@ -427,6 +489,7 @@ def run_startup_update(borderline_pesticides: list = None):
     print("   Scraping EU SANTE...")
     eu_result = scrape_eu_sante()
     if eu_result["success"]:
+        _LIVE_VERIFICATION_STATE["eu_sante_live_verified"] = True
         print(f"   ✅ EU SANTE scraped — {eu_result['raw_count']} entries found")
         append_update_log({
             "type": "SCRAPE",
@@ -435,6 +498,7 @@ def run_startup_update(borderline_pesticides: list = None):
             "action_taken": f"Found {eu_result['raw_count']} entries"
         })
     else:
+        _LIVE_VERIFICATION_STATE["eu_sante_live_verified"] = False
         print(f"   ⚠️  EU SANTE scrape failed: {eu_result['error_type']}")
         append_update_log({
             "type": "SCRAPE",

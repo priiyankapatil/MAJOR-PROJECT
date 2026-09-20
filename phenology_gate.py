@@ -1,9 +1,45 @@
+import re
 import requests
 import json
 import os
 from datetime import datetime, timedelta
 from stage_compatibility import check_chunk_compatibility, get_compatible_stages
 from crop_calendar import get_crop_stage, detect_crop_from_query
+
+DEFAULT_INDIA_COORDS = (20.5937, 78.9629)
+
+
+def _has_field_specific_context(query: str, lat: float = None, lon: float = None) -> bool:
+    """
+    Check if the user or query provided sufficient field-specific evidence
+    (such as a specific geographic location, planting date, or stage indicators).
+    """
+    query_lower = query.lower()
+    stage_indicators = [
+        "sown", "sowing", "planted", "planting", "days after", "das",
+        "transplant", "transplanted", "flowering", "tillering", "harvest",
+        "nursery", "grain filling", "seedling", "vegetative", "pod", "tasseling",
+        "stage", "growth stage", "month"
+    ]
+    if any(si in query_lower for si in stage_indicators):
+        return True
+
+    for pat in [
+        r"\bin\s+([A-Z][a-z]+)",
+        r"\bat\s+([A-Z][a-z]+)",
+        r"\bnear\s+([A-Z][a-z]+)",
+        r"\bdistrict\b",
+        r"\bstate\b",
+        r"\bfield in\b",
+    ]:
+        if re.search(pat, query):
+            return True
+
+    if lat is not None and lon is not None:
+        if abs(lat - DEFAULT_INDIA_COORDS[0]) > 0.001 or abs(lon - DEFAULT_INDIA_COORDS[1]) > 0.001:
+            return True
+
+    return False
 
 
 def get_satellite_stage(lat: float, lon: float, crop: str) -> dict:
@@ -72,25 +108,28 @@ def get_satellite_stage(lat: float, lon: float, crop: str) -> dict:
 
 def get_phenological_stage(query: str, lat: float, lon: float) -> dict:
     crop = detect_crop_from_query(query)
-    satellite = get_satellite_stage(lat, lon, crop)
 
-    final_stage = None
-    source = None
-
-    if satellite.get("confidence", 0) > 0:
-        final_stage = satellite.get("stage")
-        source = "SATELLITE"
+    # Do not invent crop stage when field-specific evidence is unavailable
+    if not _has_field_specific_context(query, lat, lon):
+        final_stage = "unknown/insufficient_context"
+        source = "INSUFFICIENT_CONTEXT"
+        satellite = {"source": "SKIPPED", "stage": None, "confidence": 0.0}
     else:
-        cal = get_crop_stage(query)
-        final_stage = cal.get("stage")
-        source = "CALENDAR"
+        satellite = get_satellite_stage(lat, lon, crop)
+        if satellite.get("confidence", 0) > 0:
+            final_stage = satellite.get("stage")
+            source = "SATELLITE"
+        else:
+            cal = get_crop_stage(query)
+            final_stage = cal.get("stage")
+            source = "CALENDAR"
 
     month = datetime.now().month
 
     print("🌿 Phenological Stage Detection:")
     print(f"   Crop    : {crop}")
     print(f"   Stage   : {final_stage}")
-    print(f"   Source  : {source} (satellite primary / calendar fallback)")
+    print(f"   Source  : {source} (requires field location/sowing context)")
 
     return {
         "crop": crop,
@@ -127,6 +166,24 @@ def apply_phenological_gate(chunks: list, query: str, lat: float, lon: float) ->
     crop = result.get("crop")
     stage = result.get("stage")
     source = result.get("source")
+
+    # If stage is unknown or context is insufficient, do not block any retrieval
+    if stage == "unknown/insufficient_context" or not stage:
+        print("\n🚧 PHENOLOGICAL GATE RESULTS:")
+        print(f"   Crop Stage  : {stage} ({source})")
+        print(f"   Total chunks: {len(chunks)}")
+        print(f"   ✅ Allowed  : {len(chunks)} (Permissive: unknown stage does not block retrieval)")
+        print(f"   🚫 Blocked  : 0")
+        return {
+            "allowed_chunks": chunks,
+            "blocked_chunks": [],
+            "stage": stage,
+            "crop": crop,
+            "stage_source": source,
+            "total_input": len(chunks),
+            "allowed_count": len(chunks),
+            "blocked_count": 0
+        }
 
     allowed_chunks = []
     blocked_chunks = []

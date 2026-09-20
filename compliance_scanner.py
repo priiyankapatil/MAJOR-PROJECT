@@ -6,10 +6,15 @@ from regulatory_kb import (
 )
 
 try:
-    from regulatory_updater import BORDERLINE_LOW, BORDERLINE_HIGH
+    from regulatory_updater import BORDERLINE_LOW, BORDERLINE_HIGH, get_regulatory_verification_status
 except Exception:
     BORDERLINE_LOW = 0.40
     BORDERLINE_HIGH = 0.70
+    def get_regulatory_verification_status():
+        return {
+            "mode": "OFFLINE_STATIC_KB",
+            "disclaimer": "Static KB active; live checks skipped."
+        }
 
 
 def extract_pesticides_from_text(text: str) -> list:
@@ -19,7 +24,31 @@ def extract_pesticides_from_text(text: str) -> list:
     for pesticide_key, data in PESTICIDE_DB.items():
         for name in data.get("common_names", []):
             pattern = rf"\b{re.escape(name)}\b"
-            if re.search(pattern, text, re.IGNORECASE):
+            for m in re.finditer(pattern, text, re.IGNORECASE):
+                # An actionable prescription verb or rate indicator near the chemical must NEVER be hidden,
+                # even if words like "unverified", "historical", or "withheld" appear nearby.
+                start = max(0, m.start() - 80)
+                end = min(len(text), m.end() + 80)
+                ctx = text[start:end].lower()
+
+                has_actionable_rate_or_verb = any(
+                    kw in ctx for kw in [
+                        "apply", "spray", "dose", "dosage", "rate", "drench", "use",
+                        "%", "ml/l", "l/ha", "kg/ha", "gm/l", "g/l", "ppm", "@", "ec", "wp"
+                    ]
+                )
+                is_purely_blocked = any(
+                    phrase in ctx for phrase in [
+                        "is blocked", "are blocked", "is withheld", "are withheld",
+                        "strictly prohibited", "is banned", "are banned"
+                    ]
+                )
+
+                # If an actionable prescription is present, it MUST be extracted.
+                # Words like "unverified", "historical", or "withheld" cannot hide it.
+                if is_purely_blocked and not has_actionable_rate_or_verb:
+                    continue
+
                 if pesticide_key not in seen:
                     seen.add(pesticide_key)
                     matches.append(pesticide_key)
@@ -107,6 +136,7 @@ def scan_answer_for_compliance(answer_text: str) -> dict:
         if BORDERLINE_LOW <= p["compliance_score"] <= BORDERLINE_HIGH
     ]
 
+    reg_status = get_regulatory_verification_status()
     return {
         "pesticides_found": pesticides_found,
         "scored_pesticides": scored_pesticides,
@@ -118,6 +148,7 @@ def scan_answer_for_compliance(answer_text: str) -> dict:
         "any_banned": any(item["india_status"] == "BANNED" for item in scored_pesticides),
         "any_eu_banned": any(item["eu_export_risk"] == "BANNED_EU" for item in scored_pesticides),
         "borderline_pesticides": borderline,
+        "regulatory_status": reg_status,
     }
 
 
@@ -128,7 +159,7 @@ def build_compliance_warning_box(scan_result: dict) -> str:
 
     scored_pesticides = scan_result.get("scored_pesticides", [])
     overall_compliance = scan_result.get("overall_compliance", 1.0)
-    overall_verdict, _ = _verdict_from_score(overall_compliance)
+    baseline_verdict, _ = _verdict_from_score(overall_compliance)
 
     india_banned_names = [item["pesticide"].upper() for item in scored_pesticides if item["india_status"] == "BANNED"]
     eu_banned_names = [item["pesticide"].upper() for item in scored_pesticides if item["eu_export_risk"] == "BANNED_EU"]
@@ -139,43 +170,163 @@ def build_compliance_warning_box(scan_result: dict) -> str:
 
     phi_values = [item["pre_harvest_interval"] for item in scored_pesticides if item["pre_harvest_interval"] is not None]
     max_phi = max(phi_values) if phi_values else None
-    max_phi_text = f"{max_phi} days before harvest" if max_phi is not None else "N/A"
+
+    reg_status = scan_result.get("regulatory_status") or get_regulatory_verification_status()
+    reg_mode = reg_status.get("mode", "OFFLINE_STATIC_KB")
+    reg_disclaimer = reg_status.get("disclaimer", "Live regulatory checks skipped; static reference KB active.")
+    is_live_verified = (reg_mode == "LIVE_VERIFIED") and reg_status.get("cibrc_live_verified", False)
+
+    # 1. Determine overall verdict according to verification state
+    if is_live_verified:
+        overall_verdict_str = f"{overall_compliance:.4f} — {baseline_verdict}"
+    elif reg_mode == "UNKNOWN":
+        overall_verdict_str = f"{overall_compliance:.4f} — UNKNOWN (Regulatory verification unavailable)"
+    elif reg_mode == "PARTIAL_LIVE_VERIFIED":
+        overall_verdict_str = f"{overall_compliance:.4f} — PARTIAL (Live verification incomplete; Static KB Baseline)"
+    else:  # OFFLINE_STATIC_KB
+        if india_banned_names:
+            overall_verdict_str = f"{overall_compliance:.4f} — BANNED (Known in Static KB) 🚫"
+        elif any(item["india_status"] == "RESTRICTED" for item in scored_pesticides):
+            overall_verdict_str = f"{overall_compliance:.4f} — RESTRICTED (Static KB) ⛔"
+        elif overall_compliance < 0.60:
+            overall_verdict_str = f"{overall_compliance:.4f} — CAUTION / UNVERIFIED ⚠️"
+        else:
+            overall_verdict_str = f"{overall_compliance:.4f} — PROVISIONAL (Static KB Baseline; Unverified Live)"
 
     lines = [
         "╔══════════════════════════════════════════════════════════════╗",
         "║         ⚖️  REGULATORY COMPLIANCE REPORT                    ║",
         "╠══════════════════════════════════════════════════════════════╣",
-        f"║  Overall Legal-Efficacy Score : {overall_compliance:.4f} — {overall_verdict}",
+        f"║  Overall Legal-Efficacy Score : {overall_verdict_str}",
         f"║  Pesticides Detected          : {len(pesticides_found)}",
+        f"║  Regulatory Verification State : {reg_mode}",
         "╠══════════════════════════════════════════════════════════════╣",
     ]
 
     for item in scored_pesticides:
         codex_mrl = "N/A" if item["codex_mrl"] is None else f"{item['codex_mrl']} mg/kg"
-        phi_text = "N/A" if item["pre_harvest_interval"] is None else f"{item['pre_harvest_interval']} days"
+
+        if is_live_verified:
+            india_status_str = item["india_label"]
+            item_score_str = f"{item['compliance_score']:.4f}  {item['verdict']}"
+            phi_item_str = f"{item['pre_harvest_interval']} days" if item["pre_harvest_interval"] is not None else "N/A"
+            organic_item_str = item["organic_label"]
+        elif reg_mode == "UNKNOWN":
+            india_status_str = "UNKNOWN (Verification unavailable)"
+            item_score_str = f"{item['compliance_score']:.4f}  UNKNOWN (Unverified)"
+            phi_item_str = f"{item['pre_harvest_interval']} days (Historical estimate; unverified live)" if item["pre_harvest_interval"] is not None else "N/A"
+            organic_item_str = f"{item['organic_label']} (Unverified)"
+        elif reg_mode == "PARTIAL_LIVE_VERIFIED":
+            cib_ok = reg_status.get("cibrc_live_verified", False)
+            if cib_ok:
+                india_status_str = item["india_label"]
+            else:
+                india_status_str = "Recorded as Approved in static KB (⚠️ Live CIB&RC unverified)"
+
+            item_score_str = f"{item['compliance_score']:.4f}  PARTIAL (Live verification incomplete)"
+            phi_item_str = (
+                f"{item['pre_harvest_interval']} days (Static baseline; verify with product label/KVK)"
+                if item["pre_harvest_interval"] is not None else "N/A"
+            )
+            organic_item_str = f"{item['organic_label']} (Live certification unverified)"
+        else:  # OFFLINE_STATIC_KB
+            if item["india_status"] == "BANNED":
+                india_status_str = "BANNED in India (Recorded in static KB)"
+            elif item["india_status"] == "RESTRICTED":
+                india_status_str = "RESTRICTED in India (Recorded in static KB)"
+            else:
+                india_status_str = "Recorded as Approved in static KB (⚠️ Live gazette status unverified)"
+
+            if item["compliance_score"] >= 0.80:
+                item_score_str = f"{item['compliance_score']:.4f}  PROVISIONAL (Static Baseline; Unverified Live)"
+            else:
+                item_score_str = f"{item['compliance_score']:.4f}  {item['verdict']} (Static Baseline)"
+
+            phi_item_str = (
+                f"{item['pre_harvest_interval']} days (Static baseline; verify with product label/KVK)"
+                if item["pre_harvest_interval"] is not None else "N/A"
+            )
+            if item["organic_status"] in {"NPOP_APPROVED", "PGS_APPROVED"}:
+                organic_item_str = f"{item['organic_label']} in static KB (Live certification unverified)"
+            else:
+                organic_item_str = f"{item['organic_label']} (Synthetic/Chemical)"
 
         lines.extend([
             "",
             f"  🔬 {item['pesticide'].upper()}",
-            f"     India (CIB&RC)   : {item['india_label']}",
+            f"     India (CIB&RC)   : {india_status_str}",
             f"     WHO Hazard Class : {item['who_class']} — {item['who_label']}",
             f"     EU Export Risk   : {item['eu_label']}",
-            f"     Organic Status   : {item['organic_label']}",
+            f"     Organic Status   : {organic_item_str}",
             f"     Codex MRL        : {codex_mrl}",
-            f"     Pre-Harvest Int. : {phi_text}",
-            f"     Compliance Score : {item['compliance_score']:.4f}  {item['verdict']}",
+            f"     Pre-Harvest Int. : {phi_item_str}",
+            f"     Compliance Score : {item_score_str}",
             f"     ⚠️  Notes        : {item['notes']}",
             f"     🌿 Organic Alt.  : {item['organic_alternative']}",
         ])
+
+    # Summary fields
+    if is_live_verified:
+        summary_india_banned = f"Yes ({', '.join(india_banned_names)})" if india_banned_names else "No"
+        summary_eu_banned = f"Yes ({', '.join(eu_banned_names)})" if eu_banned_names else "No"
+        summary_organic = "Yes" if organic_compliant else "No"
+        summary_phi = f"{max_phi} days before harvest" if max_phi is not None else "N/A"
+    elif reg_mode == "UNKNOWN":
+        summary_india_banned = "UNKNOWN (Live verification unavailable)"
+        summary_eu_banned = "UNKNOWN (Live verification unavailable)"
+        summary_organic = "UNKNOWN"
+        summary_phi = f"UNKNOWN (Historical reference: {max_phi} days)" if max_phi is not None else "N/A"
+    elif reg_mode == "PARTIAL_LIVE_VERIFIED":
+        cib_ok = reg_status.get("cibrc_live_verified", False)
+        eu_ok = reg_status.get("eu_sante_live_verified", False)
+        summary_india_banned = (
+            f"Yes ({', '.join(india_banned_names)})" if (cib_ok and india_banned_names) else
+            ("No" if cib_ok else "Not Listed as Banned in Static KB (⚠️ Live CIB&RC unverified; verify with KVK)")
+        )
+        summary_eu_banned = (
+            f"Yes ({', '.join(eu_banned_names)})" if (eu_ok and eu_banned_names) else
+            ("No" if eu_ok else "Not Listed as Banned in Static KB (⚠️ Live EU SANTE unverified)")
+        )
+        summary_organic = (
+            "Provisional (Static KB indicates NPOP/PGS; unverified live)"
+            if organic_compliant else "No (Synthetic/Chemical)"
+        )
+        summary_phi = (
+            f"Historical reference: {max_phi} days (⚠️ Unverified live; strictly check product label & KVK)"
+            if max_phi is not None else "N/A"
+        )
+    else:
+        # Default / OFFLINE_STATIC_KB
+        summary_india_banned = (
+            f"Yes (Recorded in static KB: {', '.join(india_banned_names)})"
+            if india_banned_names else
+            "Not Listed as Banned in Static KB (⚠️ Unverified against live CIB&RC gazettes; verify with KVK)"
+        )
+        summary_eu_banned = (
+            f"Yes (Recorded in static KB: {', '.join(eu_banned_names)})"
+            if eu_banned_names else
+            "Not Listed as Banned in Static KB (⚠️ Unverified against current EU SANTE gazettes)"
+        )
+        summary_organic = (
+            "Provisional (Static KB indicates NPOP/PGS; unverified against live certification lists)"
+            if organic_compliant else "No (Synthetic/Chemical)"
+        )
+        summary_phi = (
+            f"Historical reference: {max_phi} days (⚠️ Unverified live; strictly check product label & KVK)"
+            if max_phi is not None else "N/A"
+        )
+
 
     lines.extend([
         "",
         "╠══════════════════════════════════════════════════════════════╣",
         "║  📋 SUMMARY",
-        f"║  🇮🇳 India Banned     : {'Yes (' + ', '.join(india_banned_names) + ')' if india_banned_names else 'No'}",
-        f"║  🇪🇺 EU Banned        : {'Yes (' + ', '.join(eu_banned_names) + ')' if eu_banned_names else 'No'}",
-        f"║  🌿 Organic Compliant : {'Yes' if organic_compliant else 'No'}",
-        f"║  ⏰ Max PHI Required  : {max_phi_text}",
+        f"║  🇮🇳 India Banned     : {summary_india_banned}",
+        f"║  🇪🇺 EU Banned        : {summary_eu_banned}",
+        f"║  🌿 Organic Compliant : {summary_organic}",
+        f"║  ⏰ Max PHI Required  : {summary_phi}",
+        f"║  📡 Verification      : {reg_mode}",
+        f"║  ⚠️  Notice           : {reg_disclaimer}",
         "╚══════════════════════════════════════════════════════════════╝",
     ])
 

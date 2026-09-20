@@ -15,6 +15,20 @@ import sys
 import os
 from pathlib import Path
 
+# Ensure UTF-8 output encoding on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+os.environ.setdefault("NO_INTERACTIVE_FEEDBACK", "1")
+
 WORKSPACE = Path(__file__).parent
 sys.path.insert(0, str(WORKSPACE))
 
@@ -69,7 +83,7 @@ test_imports = [
     ("weather_fetcher", ["get_farm_weather", "weather_to_context"]),
     ("gov_paper_fetcher", ["GOV_SOURCES", "fetch_gov_papers"]),
     ("step8_weather_rag", ["enrich_with_weather", "is_weather_query"]),
-    ("step6_query_gate", ["query_gate", "WEATHER_ENRICHMENT_AVAILABLE"]),
+    ("step6_query_gate", ["query_gate", "QueryGate", "WEATHER_ENRICHMENT_AVAILABLE"]),
 ]
 
 all_ok = True
