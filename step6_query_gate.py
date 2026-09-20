@@ -1241,7 +1241,7 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
                     num_cols = len(parts)
                     # Compact placeholder — fits in narrow table columns without wrapping,
                     # and pairs cleanly with the single regulatory disclaimer footer.
-                    _WITHHELD = "[Chemical withheld — verify label dose with local KVK]"
+                    _WITHHELD = "[Chemical treatment withheld — consult local KVK for registered label dose]"
                     if num_cols == 1:
                         new_parts = [_WITHHELD]
                     elif num_cols == 2:
