@@ -139,7 +139,8 @@ except Exception as e:
 from compliance_scanner import scan_answer_for_compliance, build_compliance_warning_box
 
 # ── Single Groq client (used for both models) ──
-client = Groq(api_key=GROQ_API_KEY)
+# max_retries=0 disables SDK's blocking multi-minute sleep loops on HTTP 429 rate-limits
+client = Groq(api_key=GROQ_API_KEY, max_retries=0)
 groq_client = client
 
 
@@ -181,10 +182,11 @@ def measure_query_entropy(query):
     """
     Send query to LLM to measure entropy / confidence.
     """
+    routing_model = getattr(config, "ROUTING_MODEL", getattr(config, "GROQ_GATE_MODEL", "openai/gpt-oss-20b"))
     try:
         response = client.chat.completions.create(
-            model      = GROQ_ANSWER_MODEL,   # openai/gpt-oss-120b
-            messages   = [
+            model       = routing_model,
+            messages    = [
                 {
                     "role"   : "system",
                     "content": """You are an expert agricultural 
@@ -204,7 +206,8 @@ def measure_query_entropy(query):
         # Since logprobs is not supported, use response length 
         # as entropy proxy: shorter response = more confident
         response_text = response.choices[0].message.content or ""
-        response_length = len(response_text.split())
+        tokens = response_text.split()
+        response_length = len(tokens)
         
         # Normalize: typical factual answer = 10-20 words (low entropy)
         # Uncertain answer = 30+ words (high entropy)
@@ -217,16 +220,17 @@ def measure_query_entropy(query):
 
         return {
             "entropy"       : entropy,
+            "tokens"        : tokens[:5],
             "token_logprobs": [],
-            "first_tokens"  : response_text.split()[:5],
+            "first_tokens"  : tokens[:5],
             "error"         : None
         }
-    
 
     except Exception as e:
-        print(f"   ⚠️  Entropy measure error: {e}")
+        print(f"   ⚠️  Entropy measurement error: {e}")
         return {
-            "entropy"       : QT_ENTROPY_THRESHOLD + 0.5,
+            "entropy"       : 0.8,
+            "tokens"        : [],
             "token_logprobs": [],
             "first_tokens"  : [],
             "error"         : str(e)
@@ -251,9 +255,11 @@ Reply format:
 
 Type must be one of: FACTUAL, DIAGNOSTIC, RECOMMENDATION, PROCEDURAL"""
 
+    routing_model = getattr(config, "ROUTING_MODEL", getattr(config, "GROQ_GATE_MODEL", "openai/gpt-oss-20b"))
+
     try:
         response = client.chat.completions.create(
-            model    = GROQ_ANSWER_MODEL,   # openai/gpt-oss-120b
+            model    = routing_model,
             messages = [
                 {
                     "role"   : "system",
@@ -1708,8 +1714,8 @@ def query_gate(query, embedder=None, collection=None,
     print(f"\n📏 Step 2: Measuring entropy...")
     print(f"   Model: {GROQ_GATE_MODEL}")
     entropy_data = measure_query_entropy(query)
-    entropy      = entropy_data["entropy"]
-    token_logprobs = entropy_data["token_logprobs"]
+    entropy      = entropy_data.get("entropy", 0.8)
+    token_logprobs = entropy_data.get("token_logprobs", [])
 
     # Keep a named copy for feedback recording
     entropy_score = entropy
@@ -1721,7 +1727,8 @@ def query_gate(query, embedder=None, collection=None,
     else:
         THRESHOLD = QT_ENTROPY_THRESHOLD
     print(f"   Threshold : {THRESHOLD}  ← adaptive")
-    print(f"   Tokens    : {entropy_data['first_tokens']}")
+    tokens_display = entropy_data.get("first_tokens") or entropy_data.get("tokens", [])
+    print(f"   Tokens    : {tokens_display}")
     
     # Debug check: detect if all logprobs are identical
     if token_logprobs and len(set(token_logprobs)) == 1:
