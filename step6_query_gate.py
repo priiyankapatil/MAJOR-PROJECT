@@ -391,7 +391,9 @@ def make_routing_decision(entropy, classification, threshold=None):
 FAST_PATH_SYSTEM_PROMPT = """You are an expert agricultural assistant.
 Answer the user's question directly and concisely (2-4 sentences maximum).
 Include exact numeric rates, units, and conditions (e.g., timely vs late sown) if provided in the context.
-Do NOT explain your thought process. Do NOT restate the instructions. Output ONLY the final answer text."""
+Do NOT explain your thought process. Do NOT restate the instructions. Output ONLY the final answer text.
+
+CRITICAL LANGUAGE INSTRUCTION: You MUST ALWAYS compose your entire response strictly in clear, professional English. Never generate answers in Hindi, Devanagari script, or other regional languages, regardless of vernacular or Hinglish phrasing in the user's input. The user query terms may contain regional dialects for classification, but all explanations, tables, and recommendations must be entirely in English."""
 
 
 def fast_path_answer(query, chunks):
@@ -1479,7 +1481,9 @@ def slow_path_answer(query, chunks, query_type):
                        "My knowledge base doesn't have specific 
                         information about this"
                     3. Always be practical for Indian farmers
-                    4. Include specific quantities when available"""
+                    4. Include specific quantities when available
+                    
+                    CRITICAL LANGUAGE INSTRUCTION: You MUST ALWAYS compose your entire response strictly in clear, professional English. Never generate answers in Hindi, Devanagari script, or other regional languages, regardless of vernacular or Hinglish phrasing in the user's input. The user query terms may contain regional dialects for classification, but all explanations, tables, and recommendations must be entirely in English."""
                 },
                 {
                     "role"   : "user",
