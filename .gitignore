@@ -10,18 +10,24 @@ __pycache__/
 # Temporary evaluation and baseline comparison artifacts
 *old_baseline*
 all_chunks_old_baseline.parquet
-backup_indexes_before_step4/
-backup_*/
+**/backup_indexes_before_step4/
+**/backup_*/
+**/backups/
 
 # Runtime retrieval index stores
 vector_store/
+**/vector_store/
 knowledge_graph/*.pkl
+**/knowledge_graph/*.pkl
+*.pkl
 
 # Local vector database
 chroma_db/
+**/chroma_db/
 
 # Scratch scripts, temporary worktrees, and local debug artifacts
 scratch/
+**/scratch/
 
 # Python bytecode
 __pycache__/
