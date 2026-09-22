@@ -1119,23 +1119,222 @@
       font-style: italic;
     }
 
-    .final-answer-body table {
+    /* ─── Enhanced Advisory Tables & Markdown Styles ─── */
+    .table-responsive-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: var(--radius);
+      border: 1px solid #E2E8F0;
+      background: #FFFFFF;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
+    }
+
+    .final-answer-body table,
+    .advisory-table {
       width: 100%;
       border-collapse: collapse;
-      margin: 16px 0;
-      font-size: 0.9rem;
-    }
-
-    .final-answer-body th, 
-    .final-answer-body td {
-      border: 1px solid var(--border-subtle);
-      padding: 8px 12px;
+      font-size: 0.92rem;
+      line-height: 1.55;
       text-align: left;
+      margin: 0;
     }
 
-    .final-answer-body th {
-      background: var(--surface-alt);
+    .final-answer-body th,
+    .advisory-table th {
+      background: #E8F5E9; /* Soft agricultural sage */
+      color: #1B4332;
+      font-weight: 700;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 12px 16px;
+      border-bottom: 2px solid #86EFAC;
+      white-space: nowrap;
+    }
+
+    .final-answer-body td,
+    .advisory-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #F1F5F9;
+      color: #334155;
+      vertical-align: top;
+    }
+
+    .final-answer-body tr:nth-child(even),
+    .advisory-table tr:nth-child(even) {
+      background: #FAFCF9;
+    }
+
+    .final-answer-body tr:last-child td,
+    .advisory-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .final-answer-body tr:hover,
+    .advisory-table tr:hover {
+      background: #F0FDF4;
+      transition: background 0.15s ease;
+    }
+
+    /* Horizontal Divider */
+    .final-answer-body hr,
+    .advisory-divider {
+      border: 0;
+      height: 1px;
+      background: linear-gradient(to right, transparent, #CBD5E1, transparent);
+      margin: 24px 0;
+    }
+
+    /* Regulatory Compliance Report Card */
+    .regulatory-report-card {
+      margin: 24px 0 12px;
+      background: #FFFFFF;
+      border: 1.5px solid #2D6A4F;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 18px rgba(45, 106, 79, 0.08);
+      font-family: inherit;
+    }
+
+    .reg-report-header {
+      background: linear-gradient(135deg, #1B4332, #2D6A4F);
+      color: #FFFFFF;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .reg-report-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.98rem;
+      letter-spacing: 0.02em;
+    }
+
+    .reg-report-badge {
+      font-size: 0.72rem;
       font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.2);
+      color: #FFFFFF;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.04em;
+    }
+
+    .reg-report-content {
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .reg-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #E2E8F0;
+    }
+
+    .reg-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .reg-meta-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #64748B;
+      letter-spacing: 0.03em;
+    }
+
+    .reg-meta-val {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #1E293B;
+    }
+
+    .reg-chemical-block {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin: 4px 0;
+    }
+
+    .reg-chemical-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .reg-kv-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 5px 0;
+      border-bottom: 1px dashed #E2E8F0;
+      font-size: 0.84rem;
+    }
+
+    .reg-kv-row:last-child {
+      border-bottom: none;
+    }
+
+    .reg-kv-label {
+      color: #64748B;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .reg-kv-val {
+      color: #1E293B;
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .reg-summary-section {
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 4px;
+    }
+
+    .reg-summary-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #166534;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .reg-notice-box {
+      margin-top: 6px;
+      padding: 8px 12px;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: 8px;
+      color: #92400E;
+      font-size: 0.82rem;
+      line-height: 1.45;
     }
 
     .final-answer-footer {
@@ -1673,7 +1872,12 @@
       // Render Final Answer Box after all cards have animated
       const totalAnimationTime = cardDefinitions.length * 150 + 200;
       setTimeout(() => {
-        renderFinalAnswerBox(data, trustScore, qType, path);
+        try {
+          renderFinalAnswerBox(data, trustScore, qType, path);
+        } catch (err) {
+          console.error("Error executing renderFinalAnswerBox:", err);
+          finalAnswerBody.innerText = data.answer || "Advisory generated successfully.";
+        }
         finalAnswerSection.style.display = 'block';
         finalAnswerSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, totalAnimationTime);
@@ -2469,7 +2673,12 @@
 
       // Markdown Rendering of Answer
       const rawAnswer = data.answer || "No generated advisory was returned by the system.";
-      finalAnswerBody.innerHTML = renderMarkdown(rawAnswer);
+      try {
+        finalAnswerBody.innerHTML = renderMarkdown(rawAnswer);
+      } catch (err) {
+        console.error("Error rendering markdown advisory:", err);
+        finalAnswerBody.innerText = rawAnswer;
+      }
 
       // Sources
       const sources = data.sources || (data.source_chunks ? data.source_chunks.map(c => c.source_file || c.source).filter(Boolean) : []);
@@ -2717,44 +2926,240 @@ Based on the verified agricultural evidence base, yellowing in crops commonly ar
       };
     }
 
-    // ─── Simple Markdown Renderer ───
+    // ─── Markdown, Table & Regulatory Report Renderer ───
+    function splitRow(r) {
+      let str = r.trim();
+      if (str.startsWith('|')) str = str.slice(1);
+      if (str.endsWith('|')) str = str.slice(0, -1);
+      return str.split('|').map(c => c.trim());
+    }
+    const splitTableRow = splitRow;
+
+    function isTableSeparator(str) {
+      const s = str.trim();
+      if (!s.includes('-') || !s.includes('|')) return false;
+      return /^\|?(\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?$/.test(s) || /^[\s|:-]+$/.test(s);
+    }
+
+    function parseMarkdownTables(text) {
+      const lines = text.split('\n');
+      const output = [];
+      let i = 0;
+
+      while (i < lines.length) {
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // Check for GFM table with separator row
+        if (trimmed.includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+          const headers = splitRow(trimmed);
+          i += 2; // skip header & separator row
+          const rows = [];
+          while (i < lines.length && lines[i].trim().includes('|') && lines[i].trim() !== '') {
+            rows.push(splitRow(lines[i]));
+            i++;
+          }
+
+          let tableHtml = '<div class="table-responsive-wrapper"><table class="advisory-table"><thead><tr>';
+          headers.forEach(h => {
+            tableHtml += `<th>${h}</th>`;
+          });
+          tableHtml += '</tr></thead><tbody>';
+
+          rows.forEach(r => {
+            tableHtml += '<tr>';
+            headers.forEach((_, colIdx) => {
+              const val = r[colIdx] != null ? r[colIdx] : '';
+              tableHtml += `<td>${val}</td>`;
+            });
+            tableHtml += '</tr>';
+          });
+
+          tableHtml += '</tbody></table></div>';
+          output.push(tableHtml);
+          continue;
+        }
+
+        output.push(line);
+        i++;
+      }
+      return output.join('\n');
+    }
+
+    function parseRegulatoryReport(text) {
+      // Matches the Unicode box block ╔═══ ... ╚═══
+      const boxRegex = /╔[═=]+╗[\s\S]*?╚[═=]+╝/g;
+      return text.replace(boxRegex, (match) => {
+        const rawLines = match.split('\n');
+        let title = '⚖️ REGULATORY COMPLIANCE REPORT';
+        const metaItems = [];
+        const chemicalBlocks = [];
+        const summaryItems = [];
+        let notice = '';
+        let currentChem = null;
+        let section = 'meta';
+
+        for (let rawLine of rawLines) {
+          // Clean border characters and pipes
+          const clean = rawLine.replace(/^[╔╠╚║\s]+|[║\s╗╣╝]+$/g, '').trim();
+          if (!clean || /^[═=-]+$/.test(clean)) continue;
+
+          if (clean.includes('REGULATORY COMPLIANCE REPORT')) {
+            title = clean;
+            section = 'meta';
+            continue;
+          }
+
+          if (clean.includes('SUMMARY')) {
+            section = 'summary';
+            continue;
+          }
+
+          if (clean.startsWith('🔬') || (!clean.includes(':') && clean === clean.toUpperCase() && clean.length > 3)) {
+            section = 'chem';
+            currentChem = { title: clean, rows: [] };
+            chemicalBlocks.push(currentChem);
+            continue;
+          }
+
+          const colonIdx = clean.indexOf(':');
+          if (colonIdx > 0) {
+            const key = clean.slice(0, colonIdx).trim();
+            const val = clean.slice(colonIdx + 1).trim();
+
+            if (key.toLowerCase().includes('notice')) {
+              notice = val;
+              continue;
+            }
+
+            if (section === 'meta') {
+              metaItems.push({ key, val });
+            } else if (section === 'chem' && currentChem) {
+              currentChem.rows.push({ key, val });
+            } else if (section === 'summary') {
+              summaryItems.push({ key, val });
+            } else {
+              metaItems.push({ key, val });
+            }
+          }
+        }
+
+        let cardHtml = `
+<div class="regulatory-report-card">
+  <div class="reg-report-header">
+    <div class="reg-report-title-wrap">
+      <span>${title}</span>
+    </div>
+    <span class="reg-report-badge">SAFETY SCREENED</span>
+  </div>
+  <div class="reg-report-content">`;
+
+        if (metaItems.length > 0) {
+          cardHtml += `<div class="reg-meta-grid">`;
+          metaItems.forEach(item => {
+            cardHtml += `
+            <div class="reg-meta-item">
+              <span class="reg-meta-label">${item.key}</span>
+              <span class="reg-meta-val">${item.val}</span>
+            </div>`;
+          });
+          cardHtml += `</div>`;
+        }
+
+        if (chemicalBlocks.length > 0) {
+          chemicalBlocks.forEach(chem => {
+            cardHtml += `
+          <div class="reg-chemical-block">
+            <div class="reg-chemical-title">${chem.title}</div>`;
+            chem.rows.forEach(r => {
+              cardHtml += `
+            <div class="reg-kv-row">
+              <span class="reg-kv-label">${r.key}</span>
+              <span class="reg-kv-val">${r.val}</span>
+            </div>`;
+            });
+            cardHtml += `</div>`;
+          });
+        }
+
+        if (summaryItems.length > 0) {
+          cardHtml += `
+          <div class="reg-summary-section">
+            <div class="reg-summary-title">📋 Summary Compliance Checks</div>`;
+          summaryItems.forEach(s => {
+            cardHtml += `
+            <div class="reg-kv-row">
+              <span class="reg-kv-label">${s.key}</span>
+              <span class="reg-kv-val">${s.val}</span>
+            </div>`;
+          });
+          cardHtml += `</div>`;
+        }
+
+        if (notice) {
+          cardHtml += `
+          <div class="reg-notice-box">
+            <strong>⚠️ Notice:</strong> ${notice}
+          </div>`;
+        }
+
+        cardHtml += `
+  </div>
+</div>`;
+        return cardHtml;
+      });
+    }
+
     function renderMarkdown(text) {
       if (!text) return '';
-      let html = escapeHtml(text);
 
-      // Headers (h3, h2, h1)
-      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-      html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-      html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+      // 1. Transform Regulatory Unicode Box into card
+      let processed = parseRegulatoryReport(text);
 
-      // Blockquotes / Notices
-      html = html.replace(/^\&gt;\s?(.*$)/gim, '<blockquote>$1</blockquote>');
+      // 2. Parse Markdown Tables into <table class="advisory-table">
+      processed = parseMarkdownTables(processed);
 
-      // Bold and Italic
-      html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
-      html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+      // 3. Horizontal Rules (---, ___, ***)
+      processed = processed.replace(/^[\s]*[-*_]{3,}[\s]*$/gim, '<hr class="advisory-divider" />');
 
-      // Code blocks and inline code
-      html = html.replace(/`([^`]+)`/gim, '<code>$1</code>');
+      // 4. Headers (h3, h2, h1)
+      processed = processed.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      processed = processed.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      processed = processed.replace(/^# (.*$)/gim, '<h1>$1</h1>');
 
-      // Unordered lists: convert * or - to <li>
-      html = html.replace(/^\s*[\*\-]\s+(.*$)/gim, '<li>$1</li>');
-      // Wrap consecutive <li> in <ul>
-      html = html.replace(/(<li>[\s\S]*?<\/li>)/gim, '<ul>$1</ul>');
-      // Clean duplicate consecutive <ul> tags
-      html = html.replace(/<\/ul>\s*<ul>/gim, '');
+      // 5. Blockquotes
+      processed = processed.replace(/^\>\s?(.*$)/gim, '<blockquote>$1</blockquote>');
 
-      // Paragraphs
-      html = html.split(/\n\s*\n/).map(para => {
-        para = para.trim();
-        if (!para) return '';
-        if (para.startsWith('<h') || para.startsWith('<ul') || para.startsWith('<blockquote') || para.startsWith('<table')) {
-          return para;
+      // 6. Bold & Italic
+      processed = processed.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+      processed = processed.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+
+      // 7. Inline code
+      processed = processed.replace(/`([^`]+)`/gim, '<code>$1</code>');
+
+      // 8. Lists
+      processed = processed.replace(/^\s*[\*\-]\s+(.*$)/gim, '<li>$1</li>');
+      processed = processed.replace(/(<li>[\s\S]*?<\/li>)/gim, '<ul>$1</ul>');
+      processed = processed.replace(/<\/ul>\s*<ul>/gim, '');
+
+      // 9. Paragraphs
+      const blocks = processed.split(/\n\s*\n/);
+      const finalHtml = blocks.map(b => {
+        const trimmed = b.trim();
+        if (!trimmed) return '';
+        if (trimmed.startsWith('<h') || 
+            trimmed.startsWith('<ul') || 
+            trimmed.startsWith('<blockquote') || 
+            trimmed.startsWith('<table') || 
+            trimmed.startsWith('<div class="table-responsive-wrapper"') || 
+            trimmed.startsWith('<div class="regulatory-report-card"') || 
+            trimmed.startsWith('<hr')) {
+          return trimmed;
         }
-        return `<p>${para.replace(/\n/g, '<br/>')}</p>`;
+        return `<p>${trimmed.replace(/\n/g, '<br/>')}</p>`;
       }).join('\n');
 
-      return html;
+      return finalHtml;
     }
 
     function escapeHtml(str) {
