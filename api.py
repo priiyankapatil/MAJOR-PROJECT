@@ -82,6 +82,16 @@ def serve_ui():
     return health()
 
 
+@app.get("/hero_bg.jpg")
+def serve_hero_image():
+    img_path = WORKSPACE / "ui" / "hero_bg.jpg"
+    if not img_path.exists():
+        img_path = WORKSPACE / "hero_bg.jpg"
+    if img_path.exists():
+        return FileResponse(img_path)
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
 @app.post("/query")
 def process_query_endpoint(req: QueryRequest):
     global qg_instance
