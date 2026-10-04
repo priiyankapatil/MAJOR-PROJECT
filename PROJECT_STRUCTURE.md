@@ -55,6 +55,7 @@ MAJOR-PROJECT/
 │   └── scripts/               # Data maintenance & re-extraction scripts
 │
 ├── 📊 evaluation/             # 4. BENCHMARKS, TESTS & PILOT EVALUATIONS
+│   ├── FINAL_STANDARD_EVALUATION_REPORT.md # Master comparative evaluation report (Standard RAG vs AgriRAG)
 │   ├── chunking/              # Chunk quality & boundary evaluations
 │   ├── extraction/            # OCR & layout benchmarks
 │   ├── generation/            # Generation ablation & grounding diagnostics

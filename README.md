@@ -36,11 +36,14 @@ The evaluation identified and corrected:
 - **False crop-tag assignment**: Substring matching caused insect pests like "Tea Mosquito Bug" on cashew to trigger false "tea" crop tags; resolved with regex word boundaries and compound-term filtering.
 
 Detailed evaluation reports and artifacts are available in:
+- [evaluation/FINAL_STANDARD_EVALUATION_REPORT.md](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/FINAL_STANDARD_EVALUATION_REPORT.md) (**Master Comparative Benchmark Report: Standard RAG vs. AgriRAG**)
 - [evaluation/chunking/](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/chunking/)
   - [FULL_CORPUS_REGENERATION_RESULTS.md](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/chunking/FULL_CORPUS_REGENERATION_RESULTS.md)
   - [STEP3_REGRESSION_RESULTS.md](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/chunking/STEP3_REGRESSION_RESULTS.md)
   - [chunk_root_cause_analysis.md](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/chunking/chunk_root_cause_analysis.md)
   - [full_corpus_before_after.csv](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/chunking/full_corpus_before_after.csv)
+- [evaluation/retrieval/CROSS_ENCODER_ABLATION_RESULTS.md](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/retrieval/CROSS_ENCODER_ABLATION_RESULTS.md) (Cross-Encoder ablation vs. Hybrid Baseline)
+- [evaluation/generation/GENERATION_BASELINE_V2.md](file:///c:/answers%201/major%20project%20final/MAJOR-PROJECT/evaluation/generation/GENERATION_BASELINE_V2.md) (30-query factual precision benchmark)
 
 ---
 
