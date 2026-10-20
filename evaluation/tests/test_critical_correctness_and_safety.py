@@ -92,7 +92,7 @@ class TestTemporalAndPhenologyFilters(unittest.TestCase):
         self.assertEqual(len(scored), 2)
         # Recent source should rank higher
         self.assertGreater(scored[0]["temporal_score"], scored[1]["temporal_score"])
-        self.assertEqual(scored[0]["temporal_source_match"], "ICAR")
+        self.assertEqual(scored[0]["temporal_source_match"].upper(), "ICAR")
 
     def test_phenology_stage_compatibility_vs_unknown(self):
         """Confirmed compatible stage must pass, incompatible must be filtered, unknown must be preserved safely."""

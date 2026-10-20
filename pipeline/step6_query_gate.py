@@ -388,6 +388,34 @@ def make_routing_decision(entropy, classification, threshold=None):
 #      Saves gpt-oss-120b for complex tasks.
 # ─────────────────────────────────────────────
 
+BANNED_PESTICIDES_MAP = {
+    "monocrotophos": ("neem seed kernel extract (NSKE 5%) or neem oil (1500 ppm at 2-3 ml/L)", "Ib - Highly Hazardous"),
+    "nuvacron": ("neem seed kernel extract (NSKE 5%) or neem oil (1500 ppm at 2-3 ml/L)", "Ib - Highly Hazardous"),
+    "azodrin": ("neem seed kernel extract (NSKE 5%) or neem oil (1500 ppm at 2-3 ml/L)", "Ib - Highly Hazardous"),
+    "endosulfan": ("botanical neem formulations or biocontrol predators (Chrysoperla zastrowi)", "II - Moderately Hazardous"),
+    "thiodan": ("botanical neem formulations or biocontrol predators (Chrysoperla zastrowi)", "II - Moderately Hazardous"),
+    "phorate": ("neem cake soil incorporation (250 kg/ha) or Trichoderma", "Ia - Extremely Hazardous"),
+    "methyl parathion": ("botanical neem sprays or microbial biopesticides", "Ia - Extremely Hazardous"),
+    "diazinon": ("botanical formulations and biological parasitoids", "II - Moderately Hazardous"),
+}
+
+
+def _get_banned_pesticide_directive(query: str) -> str:
+    if not query:
+        return ""
+    q_lower = query.lower()
+    for b_name, (b_alt, b_haz) in BANNED_PESTICIDES_MAP.items():
+        if re.search(rf"\b{re.escape(b_name)}\b", q_lower):
+            return (
+                f"\n\nCRITICAL STATUTORY SAFETY MANDATE:\n"
+                f"The user's query asks about '{b_name}'. {b_name.capitalize()} is COMPLETELY BANNED AND PROHIBITED in India under Central Insecticide Board & Registration Committee (CIB&RC) gazette schedules.\n"
+                f"You MUST explicitly answer: 'No. {b_name.capitalize()} is strictly prohibited and banned under Government of India (CIB&RC) regulations and must NOT be sprayed or used under any circumstances.'\n"
+                f"Under NO circumstances should you state or imply that {b_name} can be used, nor prescribe any dosage for it, even if retrieved historical context mentions it.\n"
+                f"Provide safe, approved non-chemical or biological alternatives: {b_alt}, and direct the farmer to consult their local Krishi Vigyan Kendra (KVK)."
+            )
+    return ""
+
+
 FAST_PATH_SYSTEM_PROMPT = """You are an expert agricultural assistant.
 Answer the user's question directly and concisely (2-4 sentences maximum).
 Include exact numeric rates, units, and conditions (e.g., timely vs late sown) if provided in the context.
@@ -424,13 +452,26 @@ def fast_path_answer(query, chunks):
         if src and src not in sources:
             sources.append(src)
 
+    banned_directive = _get_banned_pesticide_directive(query)
+    sys_prompt = FAST_PATH_SYSTEM_PROMPT
+    if banned_directive:
+        sys_prompt += banned_directive
+    else:
+        try:
+            from regulatory_updater import get_regulatory_verification_status
+            reg_status = get_regulatory_verification_status()
+            if reg_status.get("status") == "OFFLINE_STATIC_KB" or reg_status.get("is_offline", True):
+                sys_prompt += "\nIn offline regulatory mode, do NOT prescribe synthetic chemical pesticides or exact dosages without live regulatory verification. Direct farmers to consult their local KVK."
+        except Exception:
+            pass
+
     try:
         response = client.chat.completions.create(
             model    = GROQ_GATE_MODEL,
             messages = [
                 {
                     "role"   : "system",
-                    "content": FAST_PATH_SYSTEM_PROMPT
+                    "content": sys_prompt
                 },
                 {
                     "role"   : "user",
@@ -943,13 +984,22 @@ def _scrub_unverified_agronomic_claims(text: str, chunks: list = None) -> str:
     lines = text.splitlines()
     new_lines = []
     for line in lines:
-        if "unverified in retrieved context" in line.lower():
+        lower_line = line.lower()
+        if any(marker in lower_line for marker in [
+            "unverified in retrieved context",
+            "not documented in retrieved context",
+            "not verified in retrieved context",
+            "consult local kvk for soil-test-based nutrient amendments",
+            "consult local kvk for water management practices",
+            "consult local kvk for approved nematode-suppressive",
+            "tiller removal is unverified"
+        ]):
             new_lines.append(line)
             continue
 
         # 1. Alternate Wetting and Drying (AWD)
         if not awd_in_context:
-            awd_pat = r"(?i)\b(?:practice\s+)?(?:alternate\s+wetting\s+and\s+drying(?:\s*\(\s*AWD\s*\))?|AWD)(?:\s+or\s+other\s+water-saving\s+regimes)?(?:\s+as\s+advised\s+in\s+the\s+state\s+Package\s+of\s+Practices)?"
+            awd_pat = r"(?i)(?<!note:\s)\b(?:practice\s+)?(?:alternate\s+wetting\s+and\s+drying(?:\s*\(\s*AWD\s*\))?|AWD)(?!\s+is\s+not\s+verified)(?:\s+or\s+other\s+water-saving\s+regimes)?(?:\s+as\s+advised\s+in\s+the\s+state\s+Package\s+of\s+Practices)?"
             line = re.sub(
                 awd_pat,
                 "maintain proper field drainage and avoid prolonged stagnant water (consult local KVK for water management practices; note: AWD is not verified in retrieved context)",
@@ -958,7 +1008,7 @@ def _scrub_unverified_agronomic_claims(text: str, chunks: list = None) -> str:
 
         # 2. Specific iron chelates / Moringa mulch
         if not chelate_in_context:
-            chelate_pat = r"(?i)(?:apply\s+|spray\s+)?(?:iron\s+chelates?|Fe-EDDHA|moringa\s+leaf\s+mulch)(?:\s*\([^\)]*(?:fe-eddha|chelates?)[^\)]*\))?(?:\s+(?:foliar\s+)?(?:spray|application))?(?:\s*(?:at|@)\s*[\d\.\-–]+\s*(?:g|gm|kg|ml|%)[^\,\.\;\n\|]*)?"
+            chelate_pat = r"(?i)(?<!specific\s)(?:apply\s+|spray\s+)?(?:iron\s+chelates?|Fe-EDDHA|moringa\s+leaf\s+mulch)(?!\s+formulations\s+are\s+not\s+documented)(?:\s*\([^\)]*(?:fe-eddha|chelates?)[^\)]*\))?(?:\s+(?:foliar\s+)?(?:spray|application))?(?:\s*(?:at|@)\s*[\d\.\-–]+\s*(?:g|gm|kg|ml|%)[^\,\.\;\n\|]*)?"
             line = re.sub(
                 chelate_pat,
                 "consult local KVK for soil-test-based nutrient amendments (specific iron chelate formulations are not documented in retrieved context)",
@@ -1200,7 +1250,7 @@ def _scrub_fertilizer_rates(line: str, chunks: list = None) -> str:
     return line
 
 
-def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = True, chunks: list = None) -> str:
+def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = True, chunks: list = None, query: str = None) -> str:
     """
     Ensures that under OFFLINE_STATIC_KB or unverified regulatory status:
     1. Synthetic chemical recommendations (by common name, brand name, dosage, or spray rate)
@@ -1222,6 +1272,8 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
     lines = answer_text.splitlines()
     new_lines = []
     i = 0
+    offline_flag_triggered = False
+
     while i < len(lines):
         line = lines[i]
         lower_line = line.lower()
@@ -1249,7 +1301,7 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
                     num_cols = len(parts)
                     # Compact placeholder — fits in narrow table columns without wrapping,
                     # and pairs cleanly with the single regulatory disclaimer footer.
-                    _WITHHELD = "[Chemical treatment withheld — consult local KVK for registered label dose]"
+                    _WITHHELD = "[Chemical treatment withheld — UNVERIFIED / BLOCKED; consult local KVK]"
                     if num_cols == 1:
                         new_parts = [_WITHHELD]
                     elif num_cols == 2:
@@ -1277,10 +1329,26 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
             i += 1
             continue
 
-        # ── Deduplication: track whether any chemical line was suppressed ──
-        # Instead of injecting a blocked_msg bullet per-line, we redact the chemical
-        # name inline and append ONE clean regulatory disclaimer at the very end.
-        offline_flag_triggered = False
+        # Check if line or query involves a banned substance (e.g. monocrotophos, endosulfan, phorate)
+        banned_on_line = None
+        for b_cand in ["monocrotophos", "nuvacron", "azodrin", "endosulfan", "thiodan", "phorate", "methyl parathion"]:
+            if b_cand in lower_line or (query and b_cand in query.lower()):
+                banned_on_line = b_cand
+                break
+
+        if banned_on_line and (contains_synthetic or "withheld" in lower_line or (query and banned_on_line in query.lower())):
+            # If the line attempts to recommend or affirms usage
+            if re.search(r"(?i)\b(?:yes\b|can\s+be\s+used|apply\b|spray\b|drench\b|control\b|use\b)", lower_line):
+                line = (
+                    f"No. {banned_on_line.capitalize()} is strictly prohibited and banned under Government of India (CIB&RC) "
+                    f"schedules and must NOT be sprayed or used under any circumstances. "
+                    f"For pest management, use safe biological alternatives (such as neem seed kernel extract / NSKE 5% or neem oil); "
+                    f"consult your local Krishi Vigyan Kendra (KVK)."
+                )
+                new_lines.append(line)
+                i += 1
+                offline_flag_triggered = True
+                continue
 
         # 2. Check for actionable prescription keywords
         is_prescription = any(
@@ -1292,9 +1360,11 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
 
         # 3. Line break evasion: chemical on line i, prescription rate on line i+1 (or both)
         if contains_synthetic and next_has_rate:
-            # Redact chemical name inline; consume the dosage continuation line silently
-            for term in synthetic_terms:
-                line = re.sub(rf"(?i)\b{re.escape(term)}\b", "[chemical withheld]", line)
+            line = (
+                "• Chemical treatment blocked (OFFLINE_STATIC_KB): Synthetic chemical treatments and dosages are "
+                "withheld without live regulatory verification. Consult your local Krishi Vigyan Kendra (KVK) "
+                "for legally registered options."
+            )
             new_lines.append(line)
             i += 2  # consume both chemical and rate line
             offline_flag_triggered = True
@@ -1302,13 +1372,10 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
 
         if contains_synthetic:
             if is_prescription:
-                # Redact the chemical name and dosage inline rather than replacing the entire line
-                for term in synthetic_terms:
-                    line = re.sub(rf"(?i)\b{re.escape(term)}\b", "[chemical withheld]", line)
-                line = re.sub(
-                    r"(?i)(\d+(?:\.\d+)?\s*(?:ml(?:\s*/\s*l)?|g(?:m)?(?:\s*/\s*l)?|kg(?:\s*/\s*ha)?|l(?:\s*/\s*ha)?|%|ppm))",
-                    "[dosage withheld]",
-                    line
+                line = (
+                    "• Chemical treatment blocked (OFFLINE_STATIC_KB): Synthetic chemical treatments and dosages are "
+                    "withheld without live regulatory verification. Consult your local Krishi Vigyan Kendra (KVK) "
+                    "for legally registered options."
                 )
                 offline_flag_triggered = True
             else:
@@ -1343,14 +1410,14 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
 
     sanitized_text = "\n".join(new_lines)
 
-    # Strip any stale repeated OFFLINE_STATIC_KB placeholder bullets that may have
-    # been injected by previous scrubber passes (deduplication guard)
-    sanitized_text = re.sub(
-        r"(?:[•\-\*]\s*)?\*{0,2}Chemical treatment blocked \(OFFLINE_STATIC_KB\):\*{0,2}.*?(?=\n\n|\n[•\-\*]|\Z)",
-        "",
-        sanitized_text,
-        flags=re.DOTALL,
-    ).strip()
+    # Deduplicate consecutive identical blocked bullets
+    lines_dedup = []
+    for l in sanitized_text.splitlines():
+        if "Chemical treatment blocked (OFFLINE_STATIC_KB)" in l:
+            if lines_dedup and "Chemical treatment blocked (OFFLINE_STATIC_KB)" in lines_dedup[-1]:
+                continue
+        lines_dedup.append(l)
+    sanitized_text = "\n".join(lines_dedup)
 
     # Apply full-context agronomic integrity scrubbers
     sanitized_text = _scrub_pest_parasitoid_mismatches(sanitized_text, chunks=chunks)
@@ -1363,7 +1430,7 @@ def reconcile_chemical_recommendations(answer_text: str, is_offline_reg: bool = 
     # caller flagged an offline regulatory status.
     if is_offline_reg and (
         offline_flag_triggered
-        or bool(re.search(r"(?i)\bchemical treatment withheld\b|\bchemical withheld\b|\bdosage withheld\b", sanitized_text))
+        or bool(re.search(r"(?i)\bchemical treatment (?:withheld|blocked)\b|\bchemical withheld\b|\bdosage withheld\b", sanitized_text))
     ):
         disclaimer_block = (
             "\n\n---\n"
@@ -1454,6 +1521,10 @@ def slow_path_answer(query, chunks, query_type):
             "- Emphasize non-chemical cultural, physical, and biological management."
         )
 
+    banned_directive = _get_banned_pesticide_directive(query)
+    if banned_directive:
+        regulatory_prompt_injection += banned_directive
+
     # Get query-type specific prompt
     type_prompt = SLOW_PATH_PROMPTS.get(
         query_type,
@@ -1521,7 +1592,7 @@ Provide a thorough, practical answer."""
             content = "\n".join(lines).strip()
 
             # Ensure agreement between regulatory status and answer
-            content = reconcile_chemical_recommendations(content, is_offline_reg=is_offline_reg, chunks=chunks)
+            content = reconcile_chemical_recommendations(content, is_offline_reg=is_offline_reg, chunks=chunks, query=query)
         else:
             content = (
                 "⚠️ Generation incomplete: The model was unable to generate a complete answer within token constraints. "
@@ -2005,7 +2076,7 @@ def query_gate(query, embedder=None, collection=None,
     is_offline_reg = reg_status.get("status") == "OFFLINE_STATIC_KB" or reg_status.get("is_offline", True)
 
     if answer:
-        answer = reconcile_chemical_recommendations(answer, is_offline_reg=is_offline_reg, chunks=chunks)
+        answer = reconcile_chemical_recommendations(answer, is_offline_reg=is_offline_reg, chunks=chunks, query=query)
         answer_data["answer"] = answer
 
     core_generated_answer = answer
