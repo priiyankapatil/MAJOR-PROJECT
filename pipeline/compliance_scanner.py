@@ -102,6 +102,7 @@ def score_pesticide(pesticide_key: str) -> dict:
         "verdict_color": verdict_color,
         "pre_harvest_interval": data["pre_harvest_interval_days"],
         "codex_mrl": data["codex_mrl_mg_kg"],
+        "notes": data.get("notes", ""),
         "organic_alternative": ORGANIC_ALTERNATIVES.get(
             pesticide_key,
             "Neem Seed Kernel Extract (NSKE 5%) / Neem Oil (1500 ppm @ 2-3 ml/L) or consult local KVK"
@@ -263,8 +264,8 @@ def build_compliance_warning_box(scan_result: dict) -> str:
             f"     Codex MRL        : {codex_mrl}",
             f"     Pre-Harvest Int. : {phi_item_str}",
             f"     Compliance Score : {item_score_str}",
-            f"     ⚠️  Notes        : {item['notes']}",
-            f"     🌿 Organic Alt.  : {item['organic_alternative']}",
+            f"     ⚠️  Notes        : {item.get('notes', '')}",
+            f"     🌿 Organic Alt.  : {item.get('organic_alternative', 'Neem Seed Kernel Extract (NSKE 5%) / Neem Oil 1500 ppm @ 2-3 ml/L')}",
         ])
 
     # Summary fields
