@@ -260,9 +260,8 @@ def build_compliance_warning_box(scan_result: dict) -> str:
             f"     Organic Status   : {organic_item_str}",
             f"     Codex MRL        : {codex_mrl}",
             f"     Pre-Harvest Int. : {phi_item_str}",
-            f"     Compliance Score : {item_score_str}",
             f"     ⚠️  Notes        : {item['notes']}",
-            f"     🌿 Organic Alt.  : {item['organic_alternative']}",
+            f"     🌿 Organic Alt.  : {item['organic_alternative'] if (item.get('organic_alternative') and item['organic_alternative'] != 'No alternative mapped') else ('Primary Certified Botanical / Biopesticide (Directly Approved)' if item.get('organic_status') in {'NPOP_APPROVED', 'PGS_APPROVED'} else 'Neem Seed Kernel Extract (NSKE 5%) / Neem Oil (1500 ppm @ 2-3 ml/L) or consult local KVK')}",
         ])
 
     # Summary fields

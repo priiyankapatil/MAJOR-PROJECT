@@ -11,8 +11,14 @@ Offline regression and safety tests covering critical correctness fixes:
 9. Sentence-level provenance unification: Both fast & slow paths handle evidence verification.
 """
 
+import os
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
+
+_PIPELINE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "pipeline"))
+if _PIPELINE_DIR not in sys.path:
+    sys.path.insert(0, _PIPELINE_DIR)
 
 import folk_taxonomy
 import dialectal_alignment
