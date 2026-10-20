@@ -102,8 +102,10 @@ def score_pesticide(pesticide_key: str) -> dict:
         "verdict_color": verdict_color,
         "pre_harvest_interval": data["pre_harvest_interval_days"],
         "codex_mrl": data["codex_mrl_mg_kg"],
-        "notes": data["notes"],
-        "organic_alternative": ORGANIC_ALTERNATIVES.get(pesticide_key, "No alternative mapped")
+        "organic_alternative": ORGANIC_ALTERNATIVES.get(
+            pesticide_key,
+            "Neem Seed Kernel Extract (NSKE 5%) / Neem Oil (1500 ppm @ 2-3 ml/L) or consult local KVK"
+        )
     }
 
 
