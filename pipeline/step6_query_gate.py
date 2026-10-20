@@ -421,6 +421,16 @@ Answer the user's question directly and concisely (2-4 sentences maximum).
 Include exact numeric rates, units, and conditions (e.g., timely vs late sown) if provided in the context.
 Do NOT explain your thought process. Do NOT restate the instructions. Output ONLY the final answer text.
 
+FORMULATION & DOSAGE STRICT RULES:
+- Liquid formulations (ending in EC, SC, SL, FS): Dosages MUST be in ml/L, ml/ha, or L/ha. NEVER quote kg/ha or grams for liquid SC/EC formulations. For instance, Chlorantraniliprole 18.5% SC is a liquid applied at ~150 ml/ha (30 g a.i./ha), NEVER 10 kg/ha.
+- Granular formulations (ending in GR, G, CG): Dosages are in kg/ha or kg/acre (e.g., 10 kg/ha for 0.4% GR).
+- Wettable powders / granules (ending in WP, WDG, SP): Dosages are in g/L, g/ha, or kg/ha.
+- Never mix up granular doses with liquid formulation names. Always output complete, grammatically whole sentences. Never stop mid-sentence.
+
+WEED MANAGEMENT & HERBICIDE RULES:
+- For Phalaris minor (gulli danda / canary grass) in wheat, note that legacy Isoproturon faces widespread resistance in north-western India.
+- Prioritize modern CIB&RC and PAU Package of Practices post-emergence herbicides: Clodinafop-propargyl 15% WP @ 400 g/ha (60 g a.i./ha), Sulfosulfuron 75% WG @ 33.3 g/ha (25 g a.i./ha), or Pinoxaden 5.1% EC @ 1000 ml/ha (50 g a.i./ha).
+
 CRITICAL LANGUAGE INSTRUCTION: You MUST ALWAYS compose your entire response strictly in clear, professional English. Never generate answers in Hindi, Devanagari script, or other regional languages, regardless of vernacular or Hinglish phrasing in the user's input. The user query terms may contain regional dialects for classification, but all explanations, tables, and recommendations must be entirely in English."""
 
 
@@ -484,7 +494,7 @@ Respond directly starting with 'FINAL ANSWER:'. Do not write any thoughts before
                 }
             ],
             temperature = 0.1,
-            max_tokens  = 350,
+            max_tokens  = 750,
         )
 
         content = response.choices[0].message.content or ""
@@ -500,6 +510,12 @@ Respond directly starting with 'FINAL ANSWER:'. Do not write any thoughts before
             content = content.split("Answer:")[-1].strip()
 
         content = content.strip()
+
+        # Sentence completeness safeguard: if text abruptly terminates mid-sentence, find clean boundary
+        if content and content[-1] not in ".!?\"'":
+            last_p = max(content.rfind(". "), content.rfind(".\n"), content.rfind("; "))
+            if last_p > int(len(content) * 0.5):
+                content = content[:last_p + 1].strip()
     except Exception as e:
         print(f"   ⚠️  Fast path generation error: {e}")
         content = f"⚠️ Generation temporarily unavailable: {e}"
