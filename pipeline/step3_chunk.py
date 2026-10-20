@@ -95,7 +95,7 @@ def is_hard_boundary(sentence):
     )
 
 
-def get_nsp_scores_batch(sentence_pairs):
+def get_nsp_scores_batch(sentence_pairs, batch_size=64):
     """
     Batch BERT inference for multiple sentence pairs (much faster on GPU).
     Takes list of (sent1, sent2) tuples.
@@ -105,28 +105,31 @@ def get_nsp_scores_batch(sentence_pairs):
         return []
     
     scores = []
-    try:
-        sent1s = [sp[0] for sp in sentence_pairs]
-        sent2s = [sp[1] for sp in sentence_pairs]
-        
-        encoding = TOKENIZER(
-            sent1s, sent2s,
-            return_tensors="pt",
-            max_length=512,
-            truncation=True,
-            padding=True,
-        )
-        
-        # Move to GPU if available
-        encoding = {k: v.to(DEVICE) for k, v in encoding.items()}
-        
-        with torch.no_grad():
-            logits = NSP_MODEL(**encoding).logits
-            probs  = torch.softmax(logits, dim=1)
-            scores = probs[:, 0].cpu().numpy().tolist()  # P(IsNext) for each pair
-    except Exception as e:
-        print(f"   Warning: Batch inference failed: {e}")
-        scores = [1.0] * len(sentence_pairs)  # Fallback: assume all connected
+    for i in range(0, len(sentence_pairs), batch_size):
+        sub_batch = sentence_pairs[i : i + batch_size]
+        try:
+            sent1s = [sp[0] for sp in sub_batch]
+            sent2s = [sp[1] for sp in sub_batch]
+            
+            encoding = TOKENIZER(
+                sent1s, sent2s,
+                return_tensors="pt",
+                max_length=512,
+                truncation=True,
+                padding=True,
+            )
+            
+            # Move to GPU if available
+            encoding = {k: v.to(DEVICE) for k, v in encoding.items()}
+            
+            with torch.no_grad():
+                logits = NSP_MODEL(**encoding).logits
+                probs  = torch.softmax(logits, dim=1)
+                sub_scores = probs[:, 0].cpu().numpy().tolist()  # P(IsNext) for each pair
+                scores.extend(sub_scores)
+        except Exception as e:
+            print(f"   Warning: Batch inference failed for batch {i}: {e}")
+            scores.extend([1.0] * len(sub_batch))  # Fallback: assume all connected
     
     return scores
 
@@ -201,7 +204,9 @@ def hdr_chunk(text):
     4. Group sentences between boundaries into chunks
     """
     # Sentence splitting
-    doc       = nlp(text[:1_000_000])   # spaCy limit safety
+    if len(text) + 100_000 > nlp.max_length:
+        nlp.max_length = len(text) + 200_000
+    doc       = nlp(text)
     raw_sentences = [
         s.text.strip() for s in doc.sents
         if len(s.text.strip()) > 15     # skip tiny fragments

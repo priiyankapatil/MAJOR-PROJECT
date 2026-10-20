@@ -144,7 +144,7 @@ def store_all_chunks():
             "domain"         : c["domain"],
             "authority_score": c["authority_score"],
             "trust_weight"   : c["trust_weight"],
-            "crop_tags"      : ", ".join(c["crop_tags"]),
+            "crop_tags"      : ", ".join(str(t) for t in c["crop_tags"]) if hasattr(c["crop_tags"], '__iter__') and not isinstance(c["crop_tags"], str) else str(c["crop_tags"] or ""),
             "char_count"     : c["char_count"],
         } for c in batch]
 
