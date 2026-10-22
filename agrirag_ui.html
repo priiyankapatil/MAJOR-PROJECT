@@ -2513,7 +2513,8 @@
     <p id="footerMainText"><strong>AgriRAG</strong> — Evidence-Based Agricultural Advisory System &bull; CIBRC Verified
       &bull; Conformal Risk Guarantees</p>
     <p id="footerEndpointInfo" style="margin-top: 4px; font-size: 0.76rem; color: #9CA3AF;">FastAPI Backend Endpoint:
-      <code>http://localhost:8000/query</code></p>
+      <code>http://localhost:8000/query</code>
+    </p>
   </footer>
 
   <!-- Single File Pure JavaScript -->
@@ -3974,7 +3975,8 @@ Based on the verified agricultural evidence base, yellowing in crops commonly ar
       // Matches the Unicode box block ╔═══ ... ╚═══
       const boxRegex = /╔[═=]+╗[\s\S]*?╚[═=]+╝/g;
       const isFarmerMode = (currentAppMode === 'farmer');
-      const isBannedText = /banned|prohibited|monocrotophos|phorate|chlorpyrifos|endosulfan|methyl parathion|diazinon/i.test(text);
+      const isBannedText = /\b(monocrotophos|nuvacron|azodrin|endosulfan|thiodan|phorate|methyl\s*parathion|diazinon|chlordane|aldrin|dieldrin|heptachlor)\b/i.test(text) ||
+                           /(strictly prohibited and banned|is strictly prohibited|must NOT be sprayed)/i.test(text);
 
       return text.replace(boxRegex, (match) => {
         const rawLines = match.split('\n');
@@ -4495,8 +4497,10 @@ Based on the verified agricultural evidence base, yellowing in crops commonly ar
       }
 
       // 2. Statutory Chemical Safety & CIB&RC Verification
-      const isBannedQuery = /monocrotophos|nuvacron|azodrin|endosulfan|thiodan|phorate|methyl parathion|diazinon|paraquat/i.test(query) ||
-                            /(is strictly prohibited and banned|prohibited under Government of India|prohibited pesticide detected)/i.test(answer);
+      const isBannedChemical = /\b(monocrotophos|nuvacron|azodrin|endosulfan|thiodan|phorate|methyl\s*parathion|diazinon|chlordane|aldrin|dieldrin|heptachlor)\b/i.test(query);
+      const isBannedDirective = /(strictly prohibited and banned|is strictly prohibited|must NOT be sprayed|prohibited pesticide)/i.test(answer);
+      const isBannedExplicit = /\b(banned|prohibited)\s+(pesticide|chemical|insecticide|fungicide|substance)\b/i.test(query);
+      const isBannedQuery = isBannedChemical || isBannedDirective || isBannedExplicit;
       let safetyBannerHtml = '';
       if (isBannedQuery) {
         safetyBannerHtml = `
