@@ -435,32 +435,32 @@
       }
     }
 
-    /* GUIDED FARMER INQUIRY SELECTOR: STEP 1 (CROP) -> STEP 2 (PROBLEM) */
+    /* GUIDED FARMER INQUIRY SELECTOR — STREAMLINED SINGLE-ROW */
     .guided-query-container {
       max-width: var(--max-width);
-      margin: 18px auto 0;
+      margin: 16px auto 0;
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(8px);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius);
-      padding: 16px 20px;
+      padding: 10px 18px;
       box-shadow: var(--shadow-sm);
       transition: var(--transition);
     }
 
-    .guided-header {
-      margin-bottom: 12px;
+    .guided-header-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 16px;
       flex-wrap: wrap;
-      gap: 8px;
     }
 
     .guided-title-group {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-shrink: 0;
     }
 
     .guided-icon {
@@ -468,7 +468,7 @@
     }
 
     .guided-label {
-      font-size: 0.88rem;
+      font-size: 0.9rem;
       font-weight: 800;
       color: var(--primary-dark);
       letter-spacing: -0.01em;
@@ -480,130 +480,46 @@
       font-weight: 500;
     }
 
-    /* Step 1: Crop Select Tabs */
-    .crop-select-tabs {
+    .guided-controls-inline {
       display: flex;
       align-items: center;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
-      scrollbar-width: thin;
-      scrollbar-color: var(--accent-mint) transparent;
+      gap: 10px;
+      flex: 1;
+      justify-content: flex-end;
+      min-width: 280px;
+      flex-wrap: wrap;
     }
 
-    .crop-select-tabs::-webkit-scrollbar {
-      height: 4px;
-    }
-
-    .crop-select-tabs::-webkit-scrollbar-thumb {
-      background: var(--accent-mint);
-      border-radius: 4px;
-    }
-
-    .crop-tab-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    .guided-select {
       padding: 7px 14px;
-      background: var(--surface-alt);
+      background: #FFFFFF;
       border: 1.5px solid var(--border-subtle);
       border-radius: var(--radius-pill);
       font-family: inherit;
       font-size: 0.82rem;
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--primary-dark);
       cursor: pointer;
-      white-space: nowrap;
+      outline: none;
       transition: var(--transition);
-      flex-shrink: 0;
+      max-width: 250px;
+      text-overflow: ellipsis;
     }
 
-    .crop-tab-btn:hover {
-      background: #F0FDF4;
+    .guided-select:hover:not(:disabled) {
       border-color: var(--primary-light);
-      color: var(--primary-dark);
-    }
-
-    .crop-tab-btn.active {
-      background: linear-gradient(135deg, #1B4332, #2D6A4F);
-      border-color: #1B4332;
-      color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(27, 67, 50, 0.25);
-    }
-
-    .crop-tab-emoji {
-      font-size: 1rem;
-    }
-
-    /* Step 2: Dynamic Problems Grid */
-    .crop-problem-panel {
-      display: none;
-      animation: fadeIn 0.2s ease-in-out;
-    }
-
-    .crop-problem-panel.active {
-      display: block;
-    }
-
-    .problem-chips-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-    }
-
-    @media (max-width: 640px) {
-      .problem-chips-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .chip-btn {
-      background: #FFFFFF;
-      color: var(--primary-dark);
-      border: 1px solid var(--border-subtle);
-      font-family: inherit;
-      padding: 10px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-      transition: var(--transition);
-      text-align: left;
-      line-height: 1.35;
-      width: 100%;
-    }
-
-    .chip-btn:hover {
       background: #F0FDF4;
-      border-color: var(--primary-light);
-      transform: translateY(-1px);
-      box-shadow: 0 3px 8px rgba(45, 106, 79, 0.12);
     }
 
-    .chip-icon {
-      font-size: 1.2rem;
-      flex-shrink: 0;
+    .guided-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
     }
 
-    .chip-text-wrap {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      flex: 1;
-    }
-
-    .chip-main {
-      font-size: 0.84rem;
-      font-weight: 700;
-      color: var(--primary-dark);
-    }
-
-    .chip-sub {
-      font-size: 0.74rem;
-      color: var(--text-muted);
+    .guided-select:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      background: var(--surface-alt);
     }
 
     /* FARMER IPM ACTION CARD */
@@ -2150,9 +2066,9 @@
       </button>
     </div>
 
-    <!-- Guided Farmer Inquiry — Two-Step Selector: Step 1 (Crop) -> Step 2 (Problem) -->
+    <!-- Guided Farmer Inquiry — Streamlined Single-Row Selector -->
     <div class="guided-query-container" id="suggestedChipsWrapper">
-      <div class="guided-header">
+      <div class="guided-header-row">
         <div class="guided-title-group">
           <span class="guided-icon">🌾</span>
           <div>
@@ -2160,279 +2076,22 @@
             <div class="guided-subtext">Step 1: Choose Crop &nbsp;➔&nbsp; Step 2: Choose Common Issue / Question</div>
           </div>
         </div>
-      </div>
 
-      <!-- Step 1: Crop Selection Tabs -->
-      <div class="crop-select-tabs" id="cropSelectTabs" role="tablist" aria-label="Select Crop">
-        <button type="button" class="crop-tab-btn active" data-crop-target="rice" title="Rice / Paddy Advisory">
-          <span class="crop-tab-emoji">🌾</span>
-          <span class="crop-tab-text">Rice / धान</span>
-        </button>
-        <button type="button" class="crop-tab-btn" data-crop-target="tomato" title="Tomato Advisory">
-          <span class="crop-tab-emoji">🍅</span>
-          <span class="crop-tab-text">Tomato / टमाटर</span>
-        </button>
-        <button type="button" class="crop-tab-btn" data-crop-target="arhar" title="Pulses / Arhar Advisory">
-          <span class="crop-tab-emoji">🌱</span>
-          <span class="crop-tab-text">Arhar / अरहर</span>
-        </button>
-        <button type="button" class="crop-tab-btn" data-crop-target="wheat" title="Wheat Advisory">
-          <span class="crop-tab-emoji">🌾</span>
-          <span class="crop-tab-text">Wheat / गेहूं</span>
-        </button>
-        <button type="button" class="crop-tab-btn" data-crop-target="coconut" title="Coconut Palm Advisory">
-          <span class="crop-tab-emoji">🥥</span>
-          <span class="crop-tab-text">Coconut / नारियल</span>
-        </button>
-        <button type="button" class="crop-tab-btn" data-crop-target="chilli" title="Chilli Advisory">
-          <span class="crop-tab-emoji">🌶️</span>
-          <span class="crop-tab-text">Chilli / मिर्च</span>
-        </button>
-        <button type="button" class="crop-tab-btn" data-crop-target="potato" title="Potato Advisory">
-          <span class="crop-tab-emoji">🥔</span>
-          <span class="crop-tab-text">Potato / आलू</span>
-        </button>
-      </div>
+        <div class="guided-controls-inline">
+          <select id="guidedCropSelect" class="guided-select" aria-label="Step 1: Choose Crop">
+            <option value="" disabled selected>🌾 Step 1: Choose Crop...</option>
+            <option value="rice">🌾 Rice / धान</option>
+            <option value="tomato">🍅 Tomato / टमाटर</option>
+            <option value="arhar">🌱 Arhar / अरहर</option>
+            <option value="wheat">🌾 Wheat / गेहूं</option>
+            <option value="coconut">🥥 Coconut / नारियल</option>
+            <option value="chilli">🌶️ Chilli / मिर्च</option>
+            <option value="potato">🥔 Potato / आलू</option>
+          </select>
 
-      <!-- Step 2: Dynamic Problems Grid for Active Crop -->
-      <div class="crop-problems-deck">
-        <!-- Rice Problems -->
-        <div class="crop-problem-panel active" id="panel-rice">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn" data-query="What is the recommended dose of urea for paddy?">
-              <span class="chip-icon">⚖️</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Top-dress Urea Dose</span>
-                <span class="chip-sub">धान में यूरिया की सही मात्रा</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="dhan blast control measures">
-              <span class="chip-icon">🛡️</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Blast Disease Care</span>
-                <span class="chip-sub">झुलसा / ब्लास्ट रोग रोकथाम</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="paddy stem borer safe management and control">
-              <span class="chip-icon">🐛</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Stem Borer Control</span>
-                <span class="chip-sub">तना छेदक कीट सुरक्षित रोकथाम</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="water management and alternate wetting drying in rice">
-              <span class="chip-icon">💧</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Water &amp; AWD Drainage</span>
-                <span class="chip-sub">सिंचाई व जल प्रबंधन (AWD)</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Tomato Problems -->
-        <div class="crop-problem-panel" id="panel-tomato">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn" data-query="tamatar leaf curl symptoms and control">
-              <span class="chip-icon">🍂</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Leaf Curl (Whitefly)</span>
-                <span class="chip-sub">पत्ती मरोड़िया रोग व सफेद मक्खी</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="tamatar fruit borer safe organic treatment">
-              <span class="chip-icon">🐛</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Fruit Borer Organic Care</span>
-                <span class="chip-sub">फल छेदक सुंडी का जैविक उपचार</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="tomato fertilizer schedule npk per acre">
-              <span class="chip-icon">🧪</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Fertilizer Schedule (NPK)</span>
-                <span class="chip-sub">टमाटर खाद व पोषण तालिका</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="tomato late blight organic spray management">
-              <span class="chip-icon">💧</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Late Blight &amp; Wilting</span>
-                <span class="chip-sub">पछेती झुलसा व मुरझान सुरक्षा</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Arhar / Pulses Problems -->
-        <div class="crop-problem-panel" id="panel-arhar">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn" data-query="arhar peela rog sterility mosaic control">
-              <span class="chip-icon">🟡</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Peela Rog (Sterility Mosaic)</span>
-                <span class="chip-sub">अरहर का पीला बांझपन रोग</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="arhar pod borer safe management">
-              <span class="chip-icon">🌿</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Pod Borer Safe Treatment</span>
-                <span class="chip-sub">फली छेदक कीट सुरक्षित रोकथाम</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="pigeon pea fusarium wilt prevention and trichoderma">
-              <span class="chip-icon">🛡️</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Fusarium Wilt &amp; Trichoderma</span>
-                <span class="chip-sub">उकठा रोग व ट्राइकोडर्मा उपचार</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="arhar basal dose fertilizer dap per acre">
-              <span class="chip-icon">⚖️</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">DAP &amp; Basal Fertilizer</span>
-                <span class="chip-sub">बुवाई समय डीएपी व फास्फोरस</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Wheat Problems -->
-        <div class="crop-problem-panel" id="panel-wheat">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn" data-query="wheat yellow rust symptoms and safe treatment">
-              <span class="chip-icon">🟡</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Yellow Rust (पीला रतुआ)</span>
-                <span class="chip-sub">हल्दी रोग के लक्षण व सुरक्षित उपचार</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="wheat aphid and termite treatment">
-              <span class="chip-icon">🐛</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Aphid &amp; Termite Care</span>
-                <span class="chip-sub">दीमक व चेपा (माहू) नियंत्रण</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="wheat first irrigation crown root initiation cri stage">
-              <span class="chip-icon">💧</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">CRI Stage First Irrigation</span>
-                <span class="chip-sub">21 दिन पर पहली सिंचाई (CRI)</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="wheat urea top dressing schedule">
-              <span class="chip-icon">⚖️</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Urea Top-Dressing Dose</span>
-                <span class="chip-sub">सिंचाई बाद यूरिया छिड़काव</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Coconut Problems -->
-        <div class="crop-problem-panel" id="panel-coconut">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn"
-              data-query="coconut rhinoceros beetle and red palm weevil management">
-              <span class="chip-icon">🪲</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Rhinoceros &amp; Palm Weevil</span>
-                <span class="chip-sub">गैंडा गुबरैला व लाल सूंड़ भृंग</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="coconut bud rot treatment and bordeaux mixture">
-              <span class="chip-icon">🍂</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Bud Rot &amp; Bordeaux Paste</span>
-                <span class="chip-sub">कली सड़न रोग व बोर्डो लेप</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="coconut fertilizer recommendation per palm per year">
-              <span class="chip-icon">🧪</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">NPK Fertilizer per Palm</span>
-                <span class="chip-sub">प्रति पेड़ खाद व पोटाश खुराक</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="coconut summer irrigation and drip requirement">
-              <span class="chip-icon">💧</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Summer Drip Irrigation</span>
-                <span class="chip-sub">गर्मी में जल प्रबंधन व थाला नमी</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Chilli Problems -->
-        <div class="crop-problem-panel" id="panel-chilli">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn" data-query="chilli thrips mites leaf curl churda murda control">
-              <span class="chip-icon">🍂</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Churda-Murda / Thrips &amp; Mites</span>
-                <span class="chip-sub">पत्ती मरोड़ (थ्रिप्स व माइट्स)</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="chilli fruit rot dieback anthracnose organic control">
-              <span class="chip-icon">🐛</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Fruit Rot &amp; Dieback</span>
-                <span class="chip-sub">फल सड़न व शाखा सुखना (डाईबैक)</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="chilli micronutrient spray and flower drop prevention">
-              <span class="chip-icon">🧪</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Flower Drop Prevention</span>
-                <span class="chip-sub">फूल झड़ने से रोकने के उपाय</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="chilli organic pest spray neem oil dosage">
-              <span class="chip-icon">🌿</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Neem Oil Spray Schedule</span>
-                <span class="chip-sub">नीम तेल (1500 ppm) छिड़काव</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Potato Problems -->
-        <div class="crop-problem-panel" id="panel-potato">
-          <div class="problem-chips-grid">
-            <button type="button" class="chip-btn" data-query="potato late blight prevention and copper spray">
-              <span class="chip-icon">🍂</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Late Blight (झुलसा रोग)</span>
-                <span class="chip-sub">पछेती झुलसा व कॉपर कवकनाशी</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="potato cutworm control and tuber storage care">
-              <span class="chip-icon">🐛</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Cutworm &amp; Tuber Care</span>
-                <span class="chip-sub">कटुआ कीट व कंद सुरक्षा</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="potato earthing up time and fertilizer dose">
-              <span class="chip-icon">🧪</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Earthing-Up &amp; Fertilizer</span>
-                <span class="chip-sub">मिट्टी चढ़ाना व यूरिया खुराक</span>
-              </div>
-            </button>
-            <button type="button" class="chip-btn" data-query="potato irrigation schedule before harvesting">
-              <span class="chip-icon">💧</span>
-              <div class="chip-text-wrap">
-                <span class="chip-main">Pre-Harvest Irrigation Stop</span>
-                <span class="chip-sub">खुदाई से 10 दिन पूर्व सिंचाई बंद</span>
-              </div>
-            </button>
-          </div>
+          <select id="guidedIssueSelect" class="guided-select" aria-label="Step 2: Choose Common Issue" disabled>
+            <option value="" disabled selected>📋 Step 2: Choose Issue...</option>
+          </select>
         </div>
       </div>
     </div>
@@ -2613,25 +2272,77 @@
         handleQuerySubmission();
       });
 
-      // Clickable suggested chips & crop tabs
-      suggestedChipsWrapper.addEventListener('click', (e) => {
-        const cropTab = e.target.closest('.crop-tab-btn');
-        if (cropTab && cropTab.dataset.cropTarget) {
-          const targetCrop = cropTab.dataset.cropTarget;
-          document.querySelectorAll('.crop-tab-btn').forEach(btn => btn.classList.remove('active'));
-          cropTab.classList.add('active');
-          document.querySelectorAll('.crop-problem-panel').forEach(panel => {
-            panel.classList.toggle('active', panel.id === `panel-${targetCrop}`);
-          });
-          return;
-        }
+      // Guided Farmer Inquiry single-row selector logic
+      const guidedCropSelect = document.getElementById('guidedCropSelect');
+      const guidedIssueSelect = document.getElementById('guidedIssueSelect');
 
-        const chip = e.target.closest('.chip-btn');
-        if (chip && chip.dataset.query) {
-          queryInput.value = chip.dataset.query;
-          handleQuerySubmission(chip.dataset.query);
-        }
-      });
+      const cropIssuesData = {
+        rice: [
+          { text: "Top-dress Urea Dose (धान में यूरिया की सही मात्रा)", query: "What is the recommended dose of urea for paddy?" },
+          { text: "Blast Disease Care (झुलसा / ब्लास्ट रोग रोकथाम)", query: "dhan blast control measures" },
+          { text: "Stem Borer Control (तना छेदक कीट सुरक्षित रोकथाम)", query: "paddy stem borer safe management and control" },
+          { text: "Water & AWD Drainage (सिंचाई व जल प्रबंधन)", query: "rice alternate wetting and drying irrigation practice" }
+        ],
+        tomato: [
+          { text: "Early & Late Blight Care (अगेती व पछेती झुलसा रोकथाम)", query: "tomato blight disease organic and chemical control" },
+          { text: "Fruit Borer Eco-Control (फल छेदक कीट सुरक्षित नियंत्रण)", query: "tomato fruit borer helicoverpa eco friendly control" },
+          { text: "Leaf Curl & Whitefly (पत्ती मरोड़ व सफेद मक्खी नियंत्रण)", query: "tomato leaf curl virus whitefly safe management" },
+          { text: "Balanced NPK Feeding (संतुलित खाद व सूक्ष्म पोषक तत्व)", query: "tomato fertilizer schedule and calcium deficiency blossom end rot" }
+        ],
+        arhar: [
+          { text: "Pod Borer Helicoverpa (फली छेदक कीट सुरक्षित रोकथाम)", query: "arhar pod borer safe management and control" },
+          { text: "Phytophthora Stem Blight (तना झुलसा रोग प्रबंधन)", query: "arhar phytophthora stem blight prevention and fungicide" },
+          { text: "Wilt (Ukhata) Bio-Control (उकठा / विल्ट रोग जैविक नियंत्रण)", query: "pigeonpea wilt trichoderma seed treatment" },
+          { text: "Flowering & Pod Setting (फूल व फली वृद्धि टॉनिक / एनपीके)", query: "arhar flower drop prevention pulse magic spray" }
+        ],
+        wheat: [
+          { text: "Phalaris Minor (गुल्ली डंडा / मंडूसी खरपतवार नियंत्रण)", query: "wheat phalaris minor weed control alternative to isoproturon" },
+          { text: "Yellow Rust (पीला रतुआ रोग रोकथाम)", query: "wheat yellow rust control propiconazole dose" },
+          { text: "First Irrigation & CRI (पहली सिंचाई व सीआरआई अवस्था)", query: "wheat crown root initiation first irrigation timing" },
+          { text: "Terminal Heat Care (पछैती गर्मी से बचाव व पोटाश स्प्रे)", query: "wheat terminal heat stress management potassium nitrate" }
+        ],
+        coconut: [
+          { text: "Rhinoceros Beetle Bio-Trap (गैंडा भृंग / जैविक नियंत्रण)", query: "coconut rhinoceros beetle metarhizium pheromone trap" },
+          { text: "Red Palm Weevil Management (लाल ताड़ घुन सुरक्षित उपचार)", query: "coconut red palm weevil symptom and safe treatment" },
+          { text: "Basal Stem Rot (तंजावुर विल्ट / जड़ सड़न रोग प्रबंधन)", query: "coconut basal stem rot thanjavur wilt trichoderma neem cake" },
+          { text: "Basin Irrigation & Mulching (नारियल थाला सिंचाई व मल्चिंग)", query: "coconut summer drip irrigation and organic mulching dose" }
+        ],
+        chilli: [
+          { text: "Leaf Curl / Murda (मिर्च मरोड़िया / चुरड़ा रोग रोकथाम)", query: "chilli leaf curl virus thrips mites organic management" },
+          { text: "Anthracnose / Fruit Rot (फल सड़न / डाई-बैक रोग नियंत्रण)", query: "chilli fruit rot anthracnose dieback fungicide spray" },
+          { text: "Sucking Pests / Thrips (थ्रिप्स व माइट सुरक्षित नियंत्रण)", query: "chilli thrips yellow sticky traps neem spray" },
+          { text: "Flower Drop Prevention (मिर्च में फूल झड़ने से बचाव)", query: "chilli flower drop remedy planofix naa spray" }
+        ],
+        potato: [
+          { text: "Late Blight Emergency Care (आलू पछेती झुलसा फफूंद रोकथाम)", query: "potato late blight copper fungicide mancozeb schedule" },
+          { text: "Early Blight & Brown Spot (अगेती झुलसा व पत्ती धब्बा नियंत्रण)", query: "potato early blight symptom and spray recommendation" },
+          { text: "Tuber Earthing-Up & Urea (मिट्टी चढ़ाना व यूरिया दूसरी खुराक)", query: "potato earthing up time and top dressing nitrogen dose" },
+          { text: "Scab & Aphid Vector Shield (आलू खुरंड व चेपा कीट सुरक्षा)", query: "potato common scab prevention and aphid vector control" }
+        ]
+      };
+
+      if (guidedCropSelect && guidedIssueSelect) {
+        guidedCropSelect.addEventListener('change', () => {
+          const crop = guidedCropSelect.value;
+          const issues = cropIssuesData[crop] || [];
+          guidedIssueSelect.innerHTML = '<option value="" disabled selected>📋 Step 2: Choose Issue...</option>';
+          issues.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.query;
+            opt.textContent = item.text;
+            guidedIssueSelect.appendChild(opt);
+          });
+          guidedIssueSelect.disabled = false;
+        });
+
+        guidedIssueSelect.addEventListener('change', () => {
+          const selectedQuery = guidedIssueSelect.value;
+          if (selectedQuery) {
+            queryInput.value = selectedQuery;
+            handleQuerySubmission(selectedQuery);
+          }
+        });
+      }
 
       // "New Query" button: resets and returns smoothly to hero search bar
       btnNewQuery.addEventListener('click', () => {
@@ -2653,6 +2364,11 @@
       if (isSpeaking && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         isSpeaking = false;
+      }
+      if (document.getElementById('guidedCropSelect')) document.getElementById('guidedCropSelect').selectedIndex = 0;
+      if (document.getElementById('guidedIssueSelect')) {
+        document.getElementById('guidedIssueSelect').innerHTML = '<option value="" disabled selected>📋 Step 2: Choose Issue...</option>';
+        document.getElementById('guidedIssueSelect').disabled = true;
       }
       queryInput.focus();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4311,155 +4027,7 @@ Based on the verified agricultural evidence base, yellowing in crops commonly ar
 
     // Context-Aware Farmer Action Card Generator
     function getDynamicFieldPracticeCard(q, a) {
-      const text = ((q || '') + " " + (a || '')).toLowerCase();
-
-      // 1. Weed & Herbicide Management
-      const isWeed = /weed|herbicide|phalaris|isoproturon|clodinafop|sulfosulfuron|pendimethalin|glyphosate|grass|gulli|canary|atrazine|pretilachlor/i.test(text);
-      if (isWeed) {
-        return `
-          <div class="farmer-ipm-action-card">
-            <div class="farmer-ipm-header">
-              <span class="farmer-ipm-badge">🌾 WEED MANAGEMENT BEST PRACTICE</span>
-              <h3 class="farmer-ipm-title">Integrated Weed Management (IWM) &amp; Field Practice Plan</h3>
-              <p class="farmer-ipm-subtitle">University-approved cultural, mechanical, and precision spray practices:</p>
-            </div>
-            <div class="farmer-ipm-grid">
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">🌱</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>1. Stale Seedbed &amp; Timely Sowing</strong>
-                  <p>Give pre-sowing irrigation to flush first flush of weed seedlings, then destroy them with light tillage before sowing. Avoid late sowing to prevent weed dominance.</p>
-                </div>
-              </div>
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">🚜</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>2. Critical Weed Competition Window</strong>
-                  <p>First 30–35 days after sowing (DAS) is the critical weed competition period. Conduct one hand-weeding or wheel-hoeing before canopy closure.</p>
-                </div>
-              </div>
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">🎯</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>3. Precision Spray Nozzle &amp; Water Volume</strong>
-                  <p>Always use a flat-fan or flood-jet nozzle with 400–500 L water/ha at optimum soil moisture. Never use hollow-cone nozzles for herbicide application.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      // 2. Fungal / Bacterial Disease Management
-      const isDisease = /disease|blight|rot|wilt|fungus|fungicide|blast|rust|mildew|canker|damping|spot|smut|sheath/i.test(text);
-      if (isDisease) {
-        return `
-          <div class="farmer-ipm-action-card">
-            <div class="farmer-ipm-header">
-              <span class="farmer-ipm-badge">🛡️ DISEASE DEFENSE PRACTICE</span>
-              <h3 class="farmer-ipm-title">Integrated Disease Management (IDM) &amp; Sanitation Plan</h3>
-              <p class="farmer-ipm-subtitle">Safe, biological, and cultural disease management practices:</p>
-            </div>
-            <div class="farmer-ipm-grid">
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">🌿</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>1. Bio-Fungicide Seed &amp; Soil Treatment</strong>
-                  <p>Treat seeds with <em>Trichoderma viride</em> / <em>harzianum</em> (5–10 g/kg seed) or <em>Pseudomonas fluorescens</em> before sowing to protect against soil-borne pathogens.</p>
-                </div>
-              </div>
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">💧</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>2. Field Drainage &amp; Sanitation</strong>
-                  <p>Ensure good field drainage; avoid stagnant moisture around root zones. Collect and destroy heavily infected crop residues to break fungal spore cycles.</p>
-                </div>
-              </div>
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">📞</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>3. University Extension Consultation</strong>
-                  <p>Call Kisan Call Centre toll-free at <strong>1800-180-1551</strong> (6:00 AM – 10:00 PM) or consult your local KVK for lab verification of leaf and stem samples.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      // 3. Soil Fertility / Fertilizer / Water Management
-      const isNutrient = /fertilizer|urea|npk|nitrogen|potash|phosphorus|nutrient|manure|irrigation|water|drought|chlorosis/i.test(text);
-      if (isNutrient) {
-        return `
-          <div class="farmer-ipm-action-card">
-            <div class="farmer-ipm-header">
-              <span class="farmer-ipm-badge">⚖️ SOIL &amp; NUTRIENT STEWARDSHIP</span>
-              <h3 class="farmer-ipm-title">Balanced Nutrient &amp; Water Management Plan</h3>
-              <p class="farmer-ipm-subtitle">University-approved practices for soil health and water efficiency:</p>
-            </div>
-            <div class="farmer-ipm-grid">
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">📋</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>1. Split Fertilizer Application</strong>
-                  <p>Apply nitrogen in 2–3 splits (basal, active tillering/vegetative, and panicle/flowering initiation) rather than a single heavy dose to prevent leaching and volatilization.</p>
-                </div>
-              </div>
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">🍂</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>2. Organic Matter Incorporation</strong>
-                  <p>Incorporate well-decomposed FYM or vermicompost (5–10 tonnes/ha) during land preparation to increase soil organic carbon and improve moisture retention.</p>
-                </div>
-              </div>
-              <div class="farmer-ipm-tile">
-                <div class="farmer-ipm-tile-icon">💧</div>
-                <div class="farmer-ipm-tile-content">
-                  <strong>3. Critical Stage Irrigation</strong>
-                  <p>Prioritize irrigation at critical growth stages (crown root initiation, flowering, and grain/pod development). Avoid standing water excess.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      }
-
-      // 4. Default / Insect Pest Management (IPM)
-      return `
-        <div class="farmer-ipm-action-card">
-          <div class="farmer-ipm-header">
-            <span class="farmer-ipm-badge">🌿 SAFE FIELD PRACTICE</span>
-            <h3 class="farmer-ipm-title">Integrated Pest Management (IPM) &amp; Safe Action Plan</h3>
-            <p class="farmer-ipm-subtitle">Safe, biological, and non-chemical practices recommended by ICAR &amp; State Agricultural Universities:</p>
-          </div>
-          
-          <div class="farmer-ipm-grid">
-            <div class="farmer-ipm-tile">
-              <div class="farmer-ipm-tile-icon">🌿</div>
-              <div class="farmer-ipm-tile-content">
-                <strong>1. Botanical / Biological Spray</strong>
-                <p>Neem Seed Kernel Extract (NSKE 5%) or Neem Oil (1500 ppm @ 2–3 ml/L water) as an effective bio-deterrent for sucking pests, mites, and early borer larvae.</p>
-              </div>
-            </div>
-
-            <div class="farmer-ipm-tile">
-              <div class="farmer-ipm-tile-icon">🟡</div>
-              <div class="farmer-ipm-tile-content">
-                <strong>2. Physical Traps &amp; Sanitation</strong>
-                <p>Set up 15–20 Yellow &amp; Blue sticky traps per acre to capture whiteflies and thrips early. Install pheromone lures and maintain weed-free field borders.</p>
-              </div>
-            </div>
-
-            <div class="farmer-ipm-tile">
-              <div class="farmer-ipm-tile-icon">📞</div>
-              <div class="farmer-ipm-tile-content">
-                <strong>3. Free Expert Consultation</strong>
-                <p>Call Kisan Call Centre toll-free at <strong>1800-180-1551</strong> (6:00 AM – 10:00 PM) or consult your nearest Krishi Vigyan Kendra (KVK) officer.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
+      return "";
     }
 
     // Farmer-Centric Advisory View Renderer
@@ -4600,8 +4168,7 @@ Based on the verified agricultural evidence base, yellowing in crops commonly ar
           ${renderMarkdown(cleanedAnswer)}
         </div>
 
-        <!-- Dynamic Context-Aware Action Card -->
-        ${getDynamicFieldPracticeCard(query, cleanedAnswer)}
+        
 
         <div class="farmer-context-grid">
           ${weatherHtml}
